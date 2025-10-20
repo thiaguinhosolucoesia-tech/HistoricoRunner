@@ -637,7 +637,6 @@
         /* MODAL E FORMULÁRIO (DARK)                         */
         /* ================================================= */
         
-        /* Regra original, 'overflow: hidden' foi removido */
         dialog {
             border: 1px solid rgba(255, 255, 255, 0.2);
             border-radius: 15px;
@@ -645,14 +644,13 @@
             width: 90%;
             max-width: 600px;
             padding: 0;
-            /* overflow: hidden; */ /* <- REMOVIDO */
+            /* overflow: hidden; */ 
             background: #2a2a3a;
             color: #f0f0f0;
         }
         
-        /* Aplica flex e scroll APENAS quando o modal está [open] */
         dialog[open] {
-            max-height: 90vh; /* Limita a altura em telas pequenas/mobile */
+            max-height: 90vh; 
             display: flex;
             flex-direction: column;
         }
@@ -662,7 +660,6 @@
             backdrop-filter: blur(5px);
         }
 
-        /* Impede que o header encolha */
         .modal-header {
             padding: 20px 30px;
             background: #1f2027;
@@ -677,14 +674,13 @@
             color: #c5cae9;
         }
 
-        /* Adiciona scroll ao corpo do modal */
         .modal-body {
             padding: 30px;
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 20px;
-            overflow-y: auto; /* Adiciona scroll VERTICAL se o conteúdo for maior */
-            flex-grow: 1;     /* Faz o corpo ocupar o espaço disponível */
+            overflow-y: auto; 
+            flex-grow: 1;     
         }
 
         .form-group {
@@ -762,7 +758,6 @@
             margin-bottom: 0;
         }
 
-        /* Impede que o footer encolha */
         .modal-footer {
             padding: 20px 30px;
             background: #1f2027;
@@ -823,6 +818,17 @@
             font-size: 0.9em;
             border-top: 1px solid #444;
         }
+        
+        /* Estilo para o link no rodapé */
+        .footer a {
+            color: #aaa; /* Mantém a cor original do texto */
+            text-decoration: none; /* Remove o sublinhado */
+            transition: color 0.3s ease;
+        }
+        .footer a:hover {
+            color: #667eea; /* Muda a cor ao passar o mouse */
+        }
+
 
         /* Animação de Loading Simples */
         .loader {
@@ -868,7 +874,6 @@
                 grid-template-columns: 1fr;
             }
             
-            /* Garante que no mobile o modal-body use 1 coluna */
             .modal-body {
                 grid-template-columns: 1fr;
             }
@@ -977,7 +982,8 @@
         </div>
 
         <div class="footer">
-            <a href="https://thiaguinhosolucoesia-tech.github.io/thIAguinhoSolucoes/" target="_blank" rel="noopener noreferrer" style="color: #aaa; text-decoration: none;">
+            Potencialize seus treinos e resultados com soluções digitais. 
+            <a href="https://thiaguinhosolucoesia-tech.github.io/thIAguinhoSolucoes/" target="_blank" rel="noopener noreferrer">
                 Desenvolvido com 🤖 por <strong>thIAguinho Soluções</strong>
             </a>
         </div>
@@ -1679,6 +1685,7 @@
                 loadAdminPanel();
             } else {
                  dom.userInfo.classList.remove('admin-user');
+                 dom.adminPanel.classList.add('hidden'); // Garante que não-admins não vejam o painel
             }
         }
         
@@ -1749,7 +1756,8 @@
                 }
                 
                 Object.entries(profiles).forEach(([uid, profile]) => {
-                    if (uid === authUser.uid) return; 
+                    // O Admin não aparece na lista para ser excluído
+                    if (!authUser || uid === authUser.uid) return; 
                     
                     const item = document.createElement('div');
                     item.className = 'approved-item';
@@ -1820,7 +1828,7 @@
         
         function deleteUser(uid, name) {
             if (!isAdmin) return;
-            if (!confirm(`ATENÇÃO!\n\nTem certeza que deseja EXCLUIR PERMANENTEMENTE o usuário ${name}?\n\TODOS os dados (perfil, corridas) serão apagados e não poderão ser recuperados.\n\n(Obs: O login do usuário ainda precisará ser excluído manualmente no painel do Firebase Authentication).`)) return;
+            if (!confirm(`ATENÇÃO!\n\nTem certeza que deseja EXCLUIR PERMANENTEMENTE o usuário ${name}?\n\TODOS os dados (perfil, corridas) serão apagados e não poderão ser recuperados.\n\n(Obs: O login do usuário ainda precisará ser excluído manually no painel do Firebase Authentication).`)) return;
             
             const updates = {};
             updates[`/users/${uid}`] = null; 
