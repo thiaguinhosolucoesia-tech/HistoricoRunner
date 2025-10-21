@@ -17,6 +17,7 @@
     <div class="container">
         <div class="header">
             <button class="auth-btn hidden" id="btn-back-to-public">⬅️ Voltar à Lista</button>
+            <button class="auth-btn hidden" id="btn-back-to-my-dashboard">⬅️ Voltar ao Meu Painel</button>
             
             <div class="auth-controls">
                 <div id="user-info" class="hidden">
@@ -148,7 +149,7 @@
 
             <div id="public-view" class="hidden">
                 <h2>Currículos Públicos</h2>
-                <div class="profile-list" id="public-profile-list">
+                <div class="profile-list" id="public-profile-list-public">
                     <div class="loader">Carregando perfis públicos...</div>
                 </div>
 
@@ -206,6 +207,12 @@
                 </div>
             </div>
             
+            <div class="public-profile-list-section">
+                <h2 class="section-title">Outros Currículos Públicos</h2>
+                <div class="profile-list" id="public-profile-list-logged">
+                    <div class="loader">Carregando perfis públicos...</div>
+                </div>
+            </div>
             <div class="public-calendar-section" style="background: #1a1a2e; padding-top: 20px;">
                 <h2 class="section-title">Próximas Etapas - <span class="text-blue-highlight">Copa Alcer</span></h2>
                 <div id="copa-container-logged" class="calendar-grid">
