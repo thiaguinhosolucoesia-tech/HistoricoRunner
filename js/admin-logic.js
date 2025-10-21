@@ -48,7 +48,9 @@ function initializeAdminPanel(adminUid, db) {
     // --- Listeners de Eventos do Admin ---
     function addAdminEventListeners() {
         // NOVO - Listener para o toggle
-        adminDom.adminToggleBtn.addEventListener('click', toggleAdminPanel);
+        if (adminDom.adminToggleBtn) { // Verificação de segurança
+            adminDom.adminToggleBtn.addEventListener('click', toggleAdminPanel);
+        }
 
         // V2
         adminDom.raceForm.addEventListener('submit', handleRaceFormSubmit);
@@ -418,8 +420,9 @@ function initializeAdminPanel(adminUid, db) {
 
     function uploadFinalRanking(rankingData) {
         updateStatus("Enviando ranking final...", "loading", 'ranking');
-        // NOTA: O V2 envia para 'rankingCopaAlcer'. Vamos manter essa estrutura.
-        db.ref('rankingCopaAlcer').set(rankingData)
+        // **** CORREÇÃO DO MEU TYPO ANTERIOR ****
+        // O caminho correto é 'rankingCopaAlcer'
+        db.ref('rankingCopaAlcer').set(rankingData) 
             .then(() => updateStatus("Ranking final atualizado com sucesso!", "success", 'ranking'))
             .catch(error => updateStatus(`Falha no envio: ${error.message}`, "error", 'ranking'));
     }
