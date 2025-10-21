@@ -30,6 +30,7 @@ const dom = {
     // V1 (Perfis)
     btnLogout: document.getElementById('btn-logout'),
     btnBackToPublic: document.getElementById('btn-back-to-public'), 
+    btnBackToMyDashboard: document.getElementById('btn-back-to-my-dashboard'),
     userInfo: document.getElementById('user-info'),
     userEmail: document.getElementById('user-email'),
     loginOrPublicView: document.getElementById('login-or-public-view'),
@@ -47,7 +48,8 @@ const dom = {
     signupRunner2Name: document.getElementById('signup-runner2-name'), 
     signupTeamName: document.getElementById('signup-team-name'), 
     publicView: document.getElementById('public-view'),
-    publicProfileList: document.getElementById('public-profile-list'),
+    publicProfileListPublic: document.getElementById('public-profile-list-public'),
+    publicProfileListLogged: document.getElementById('public-profile-list-logged'),
     userContent: document.getElementById('user-content'),
     headerSubtitle: document.getElementById('header-subtitle'),
     prGrid: document.getElementById('pr-grid'),
@@ -509,14 +511,21 @@ function loadRaces(uid) {
 }
 
 function loadPublicView() {
-    dom.headerSubtitle.textContent = "Selecione um currículo ou faça login";
+    if(!authUser) {
+        dom.headerSubtitle.textContent = "Selecione um currículo ou faça login";
+    }
     
     const publicProfilesRef = firebase.database().ref('/publicProfiles');
     publicProfilesRef.on('value', (snapshot) => {
         const profiles = snapshot.val();
-        dom.publicProfileList.innerHTML = '';
+        
+        // Limpa ambos os containers
+        if (dom.publicProfileListPublic) dom.publicProfileListPublic.innerHTML = '';
+        if (dom.publicProfileListLogged) dom.publicProfileListLogged.innerHTML = '';
+
         if(profiles) {
-            Object.entries(profiles).forEach(([uid, profile]) => {
+            // Função helper para criar o card
+            const createProfileCard = (uid, profile) => {
                 const card = document.createElement('div');
                 card.className = 'profile-card';
                 card.innerHTML = `
@@ -525,16 +534,40 @@ function loadPublicView() {
                     <p>${profile.teamName || 'Equipe'}</p>
                 `;
                 card.addEventListener('click', () => {
-                    dom.loginOrPublicView.classList.add('hidden');
-                    dom.userContent.classList.remove('hidden');
-                    dom.btnBackToPublic.classList.remove('hidden'); 
-                    loadProfile(uid); 
-                    loadRaces(uid);
+                    if (!authUser) {
+                        // Usuário DESLOGADO
+                        dom.loginOrPublicView.classList.add('hidden');
+                        dom.userContent.classList.remove('hidden');
+                        dom.btnBackToPublic.classList.remove('hidden'); // Botão de voltar para a lista pública (deslogado)
+                        dom.btnBackToMyDashboard.classList.add('hidden');
+                    } else {
+                        // Usuário LOGADO
+                        // Já está no #user-content
+                        dom.btnBackToPublic.classList.add('hidden');
+                        dom.btnBackToMyDashboard.classList.remove('hidden'); // Botão de voltar para o SEU dashboard
+                    }
+                    loadProfile(uid); // Carrega o perfil CLICADO
+                    loadRaces(uid);   // Carrega as corridas do perfil CLICADO
                 });
-                dom.publicProfileList.appendChild(card);
+                return card;
+            };
+
+            Object.entries(profiles).forEach(([uid, profile]) => {
+                // Adiciona ao container PÚBLICO (se existir)
+                if (dom.publicProfileListPublic) {
+                    dom.publicProfileListPublic.appendChild(createProfileCard(uid, profile));
+                }
+                // Adiciona ao container LOGADO (se existir)
+                if (dom.publicProfileListLogged) {
+                    // Não mostra o próprio perfil do usuário logado na lista
+                    if(authUser && authUser.uid === uid) return; 
+                    dom.publicProfileListLogged.appendChild(createProfileCard(uid, profile));
+                }
             });
         } else {
-            dom.publicProfileList.innerHTML = '<div class="loader">Nenhum perfil público encontrado.</div>';
+            const noProfileMsg = '<div class="loader">Nenhum perfil público encontrado.</div>';
+            if (dom.publicProfileListPublic) dom.publicProfileListPublic.innerHTML = noProfileMsg;
+            if (dom.publicProfileListLogged) dom.publicProfileListLogged.innerHTML = noProfileMsg;
         }
     });
 }
@@ -548,6 +581,7 @@ function showLoggedOutView() {
     
     dom.btnLogout.classList.add('hidden');
     dom.btnBackToPublic.classList.add('hidden'); 
+    dom.btnBackToMyDashboard.classList.add('hidden');
     dom.userInfo.classList.add('hidden');
     dom.controlsSection.classList.add('hidden');
     // dom.adminPanel.classList.add('hidden'); // Oculto por padrão no HTML
@@ -605,12 +639,14 @@ function showUserDashboard(user) {
     dom.pendingApprovalView.classList.add('hidden');
     dom.rejectedView.classList.add('hidden');
     dom.btnBackToPublic.classList.add('hidden'); 
+    dom.btnBackToMyDashboard.classList.add('hidden'); 
     
     dom.userContent.classList.remove('hidden');
 
     loadProfile(user.uid); // Carrega perfil V1
     loadRaces(user.uid); // Carrega corridas pessoais V1
     fetchAllData(); // Carrega calendário V2
+    loadPublicView(); // Carrega a lista de perfis públicos
     
     if (isAdmin) {
         dom.userInfo.classList.add('admin-user');
@@ -929,6 +965,14 @@ document.addEventListener('DOMContentLoaded', () => {
         toggleLoginMode(isSigningUp);
     });
     
+    // [NOVO LISTENER]
+    dom.btnBackToMyDashboard.addEventListener('click', () => {
+        if (authUser) {
+            dom.btnBackToMyDashboard.classList.add('hidden');
+            showUserDashboard(authUser); // Recarrega o dashboard do usuário logado
+        }
+    });
+
     toggleLoginMode(false); // Define o estado inicial do formulário de login
 
     // Listeners do Modal V2 (Resultados Públicos)
@@ -979,4 +1023,3 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
-
