@@ -6,11 +6,9 @@
     <title>Currículo de Corredores - thIAguinho Soluções</title>
     <link rel="stylesheet" href="css/styles.css">
     <link href="https://cdn.jsdelivr.net/npm/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
-    
+
     <link rel="manifest" href="manifest.json">
-
     <meta name="theme-color" content="#007bff">
-
 </head>
 <body>
 
@@ -18,28 +16,28 @@
         <div class="header">
             <button class="auth-btn hidden" id="btn-back-to-public">⬅️ Voltar à Lista</button>
             <button class="auth-btn hidden" id="btn-back-to-my-dashboard">⬅️ Voltar ao Meu Painel</button>
-            
+
             <div class="auth-controls">
                 <div id="user-info" class="hidden">
                     <span id="user-email"></span>
                 </div>
                 <button class="auth-btn hidden" id="btn-logout">Logout</button>
             </div>
-            
+
             <h1>Currículo de Corridas de Rua 🏃🏽‍♂️🏃🏽‍♀️</h1>
             <p id="header-subtitle">Carregando...</p>
         </div>
-        
+
         <div id="admin-panel" class="hidden">
             <h2>⚙️ Painel de Admin</h2>
-            
+
             <div class="admin-grid">
                 <div class="admin-section" id="admin-users-section">
                     <h3>Aprovações Pendentes</h3>
                     <div id="pending-list">
                         <div class="loader" style="color:#1f2027;">Carregando...</div>
                     </div>
-                    
+
                     <h3>Usuários Aprovados</h3>
                     <div id="approved-list">
                          <div class="loader" style="color:#1f2027;">Carregando...</div>
@@ -47,7 +45,7 @@
                 </div>
 
                 <div class="admin-section" id="admin-races-section">
-                    
+
                     <div>
                         <h3 id="form-title">Cadastrar Nova Corrida</h3>
                         <form id="race-form-admin">
@@ -108,7 +106,7 @@
                         </div>
                         <button id="upload-results-button" class="btn btn-primary">Enviar Resultados</button>
                         <p id="upload-results-status" class="upload-status"></p>
-                        
+
                         <div class="form-group" style="margin-top: 20px; border-top: 1px dashed #5f4c00; padding-top: 20px;">
                              <h4 class="admin-race-list-title">Ranking Final da Copa</h4>
                              <p class="form-help-text">Use para substituir todo o ranking geral da Copa com um arquivo consolidado.</p>
@@ -119,29 +117,42 @@
                         <p id="upload-ranking-status" class="upload-status"></p>
                     </div>
 
-                </div>
+                    <div class="admin-section" id="admin-publish-section">
+                        <h3>🚀 Publicar Site</h3>
+                        <p class="form-help-text">Após fazer alterações (aprovar usuários, adicionar corridas, etc.), clique no link abaixo para ir ao GitHub e disparar a atualização do site público.</p>
+                        <a href="https://github.com/SEU_USUARIO/SEU_REPOSITORIO/actions/workflows/publish.yml"
+                           target="_blank"
+                           rel="noopener noreferrer"
+                           id="goToPublishBtn"
+                           class="btn btn-primary w-full"
+                           style="background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); display: block; text-align: center;">
+                           Ir para Publicação no GitHub <i class='bx bx-link-external'></i>
+                        </a>
+                        <p class="form-help-text" style="margin-top: 10px;">Na página do GitHub, clique em "Run workflow" para iniciar a publicação.</p>
+                    </div>
+                    </div>
             </div>
         </div>
 
         <div id="login-or-public-view">
-            
+
             <div id="login-view">
                 <h2 id="login-title">Acessar Meu Currículo</h2>
                 <form id="login-form">
                     <input type="email" id="login-email" placeholder="E-mail" required>
                     <input type="password" id="login-password" placeholder="Senha (mín. 6 caracteres)" required>
-                    
+
                     <div id="signup-fields" class="hidden">
                         <input type="text" id="signup-runner1-name" placeholder="Seu nome (Ex: Thiago)" required>
                         <input type="text" id="signup-runner2-name" placeholder="Nome Corredor 2 (Opcional, Ex: Thamis)">
                         <input type="text" id="signup-team-name" placeholder="Nome da Equipe (Ex: Le Runners)">
                     </div>
-                   
+
                     <div class="login-buttons">
                          <button type="button" class="auth-btn btn-primary" id="btn-login-submit">Entrar</button>
                          <button type="button" class="auth-btn" id="btn-signup-submit">Cadastrar</button>
                     </div>
-                   
+
                     <div id="login-error"></div>
                     <a id="login-toggle-link">Não tem conta? Cadastre-se</a>
                 </form>
@@ -172,12 +183,12 @@
 
             </div>
         </div>
-        
+
         <div id="pending-approval-view" class="hidden">
             <h2>⏳ Cadastro Recebido</h2>
             <p>Sua conta foi criada com sucesso e está aguardando a aprovação do administrador. Você será liberado em breve.</p>
         </div>
-        
+
         <div id="rejected-view" class="hidden">
             <h2>❌ Acesso Recusado</h2>
             <p>O cadastro para o e-mail <b id="rejected-email"></b> não foi aprovado pelo administrador. Entre em contato para mais informações.</p>
@@ -206,13 +217,14 @@
                     <div class="loader">Carregando histórico do Firebase...</div>
                 </div>
             </div>
-            
+
             <div class="public-profile-list-section">
                 <h2 class="section-title">Outros Currículos Públicos</h2>
                 <div class="profile-list" id="public-profile-list-logged">
                     <div class="loader">Carregando perfis públicos...</div>
                 </div>
             </div>
+
             <div class="public-calendar-section" style="background: #1a1a2e; padding-top: 20px;">
                 <h2 class="section-title">Próximas Etapas - <span class="text-blue-highlight">Copa Alcer</span></h2>
                 <div id="copa-container-logged" class="calendar-grid">
@@ -233,7 +245,7 @@
         </div>
 
         <div class="footer">
-            Potencialize seus treinos e resultados com soluções digitais. 
+            Potencialize seus treinos e resultados com soluções digitais.
             <a href="https://thiaguinhosolucoesia-tech.github.io/thIAguinhoSolucoes/" target="_blank" rel="noopener noreferrer">
                 Desenvolvido com 🤖 por <strong>thIAguinho Soluções</strong>
             </a>
@@ -282,7 +294,7 @@
                     </div>
                 </div>
 
-                <div class="runner-form-group runner2" id="runner2-form-group">
+                <div class="runner-form-group runner2 hidden" id="runner2-form-group">
                     <h4 id="runner2-form-name">Corredor 2 🏃‍♀️</h4>
                     <div class="form-group">
                         <label for="runner2Status">Status</label>
@@ -314,13 +326,13 @@
             </div>
 
             <div class="modal-footer">
-                <button type="button" class="btn" id="btn-delete" class="hidden">Excluir</button>
+                <button type="button" class="btn hidden" id="btn-delete">Excluir</button>
                 <button type="button" class="btn btn-secondary" id="btn-cancel">Cancelar</button>
                 <button type="submit" class="btn btn-primary" id="btn-save">Salvar</button>
             </div>
         </form>
     </dialog>
-    
+
     <div id="modal-overlay" class="v2-modal-overlay hidden">
         <div id="results-modal" class="v2-modal-content">
             <button id="btn-close-results-modal" class="v2-modal-close-btn">&times;</button>
