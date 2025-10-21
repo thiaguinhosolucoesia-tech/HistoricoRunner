@@ -160,23 +160,23 @@
 
             <div id="public-view" class="hidden">
                 <h2>Currículos Públicos</h2>
-                <div class="profile-list" id="public-profile-list-public">
+                <div class="profile-list" id="public-profile-list-public" data-source="data/public_profiles.json">
                     <div class="loader">Carregando perfis públicos...</div>
                 </div>
 
                 <div class="public-calendar-section">
                     <h2 class="section-title">Próximas Etapas - <span class="text-blue-highlight">Copa Alcer</span></h2>
-                    <div id="copa-container-public" class="calendar-grid">
+                     <div id="copa-container-public" class="calendar-grid" data-source="data/corridas.json" data-filter="copaAlcer">
                         <p class="loader">Carregando calendário da Copa...</p>
                     </div>
 
                     <h2 class="section-title">Resultados de Etapas Anteriores</h2>
-                    <div id="resultados-container-public" class="calendar-grid">
+                     <div id="resultados-container-public" class="calendar-grid" data-source="data/resultados.json">
                         <p class="loader">Carregando resultados...</p>
                     </div>
 
                     <h2 class="section-title">Outras Corridas da Região</h2>
-                    <div id="geral-container-public" class="calendar-grid">
+                    <div id="geral-container-public" class="calendar-grid" data-source="data/corridas.json" data-filter="geral">
                         <p class="loader">Carregando outras corridas...</p>
                     </div>
                 </div>
@@ -220,24 +220,24 @@
 
             <div class="public-profile-list-section">
                 <h2 class="section-title">Outros Currículos Públicos</h2>
-                <div class="profile-list" id="public-profile-list-logged">
+                 <div class="profile-list" id="public-profile-list-logged" data-source="data/public_profiles.json">
                     <div class="loader">Carregando perfis públicos...</div>
                 </div>
             </div>
 
             <div class="public-calendar-section" style="background: #1a1a2e; padding-top: 20px;">
                 <h2 class="section-title">Próximas Etapas - <span class="text-blue-highlight">Copa Alcer</span></h2>
-                <div id="copa-container-logged" class="calendar-grid">
+                 <div id="copa-container-logged" class="calendar-grid" data-source="data/corridas.json" data-filter="copaAlcer">
                     <p class="loader">Carregando calendário da Copa...</p>
                 </div>
 
                 <h2 class="section-title">Resultados de Etapas Anteriores</h2>
-                <div id="resultados-container-logged" class="calendar-grid">
+                 <div id="resultados-container-logged" class="calendar-grid" data-source="data/resultados.json">
                     <p class="loader">Carregando resultados...</p>
                 </div>
 
                 <h2 class="section-title">Outras Corridas da Região</h2>
-                <div id="geral-container-logged" class="calendar-grid">
+                <div id="geral-container-logged" class="calendar-grid" data-source="data/corridas.json" data-filter="geral">
                     <p class="loader">Carregando outras corridas...</p>
                 </div>
             </div>
@@ -357,15 +357,21 @@
     <script src="js/main-logic.js"></script>
 
     <script>
-        // Registra o Service Worker (assegure que sw.js está na raiz ou ajuste o caminho)
+        // Registra o Service Worker (Caminho e Escopo ajustados para GitHub Pages)
         if ('serviceWorker' in navigator) {
+            const swPath = '/HistoricoRunner/sw.js'; // Caminho a partir da raiz do domínio
+            const swScope = '/HistoricoRunner/';    // Escopo que o SW controlará
+
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/HistoricoRunner/sw.js', { scope: '/HistoricoRunner/' }) // Ajustado para subdiretório
+                navigator.serviceWorker.register(swPath, { scope: swScope })
                     .then(registration => {
-                        console.log('ServiceWorker registrado com sucesso no escopo:', registration.scope);
+                        console.log('ServiceWorker registrado com sucesso:', registration.scope);
                     })
                     .catch(error => {
                         console.error('Falha no registro do ServiceWorker:', error);
+                         // Log adicional para depuração
+                         console.error('Verifique se o arquivo sw.js existe em:', swPath);
+                         console.error('Verifique se o escopo:', swScope, 'é válido para a página atual.');
                     });
             });
         }
