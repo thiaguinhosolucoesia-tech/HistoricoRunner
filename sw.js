@@ -1,49 +1,66 @@
-// Define o nome do cache
-const CACHE_NOME = 'curriculo-corredores-v2';
+// Define o nome do cache (incrementar versão força atualização)
+const CACHE_NOME = 'curriculo-corredores-v3'; // <--- VERSÃO INCREMENTADA
 
 // Lista de arquivos exatos do seu projeto para o App Shell
-// Caminhos relativos para funcionar no GitHub Pages
+// Caminhos relativos à raiz do escopo do Service Worker (/HistoricoRunner/)
 const listaUrlsParaCache = [
-  '.',
-  'index.html',
-  'css/styles.css',
-  'js/config.js',
-  'js/admin-logic.js',
-  'js/main-logic.js',
-  'icons/icon-192x192.png',
-  'icons/icon-512x512.png'
-  // Adicione aqui outros tamanhos de ícones que você gerar
-  // NOTA: Não estamos cacheando os scripts do Firebase ou Boxicons no 'install'
-  // Eles serão cacheados dinamicamente pela rede no evento 'fetch'.
+  './', // Atalho para index.html no escopo
+  './index.html',
+  './css/styles.css',
+  './js/config.js',
+  './js/admin-logic.js',
+  './js/main-logic.js',
+  './manifest.json', // Manifest também deve ser cacheado
+  // Dados JSON são carregados via fetch no main-logic, não precisam estar aqui
+  // Ícones referenciados no manifest e HTML
+  './icons/icon-192x192.png',
+  './icons/icon-512x512.png',
+  './icons/icon-144x144.png', // Adicione outros se usar
+  './icons/icon-152x152.png',
+  './icons/icon-384x384.png',
+  './icons/icon-128x128.png',
+  './icons/icon-72x72.png',
+  './icons/icon-96x96.png',
+  // CDNs importantes (opcional, mas melhora offline se cachear)
+  'https://cdn.jsdelivr.net/npm/boxicons@2.1.4/css/boxicons.min.css'
+  // URLs do Firebase SDK são carregadas pelo HTML, serão cacheadas dinamicamente
 ];
 
 // Evento 'install': Salva os arquivos do App Shell no cache
 self.addEventListener('install', (event) => {
-  console.log('[ServiceWorker] Instalando...');
+  console.log('[ServiceWorker] Instalando v3...');
   event.waitUntil(
     caches.open(CACHE_NOME)
       .then((cache) => {
-        console.log('[ServiceWorker] Abrindo cache e salvando o App Shell');
-        return cache.addAll(listaUrlsParaCache);
+        console.log('[ServiceWorker] Cache aberto:', CACHE_NOME);
+        // Usar addAll é atômico: falha se um arquivo não for encontrado
+        return cache.addAll(listaUrlsParaCache)
+          .catch(error => {
+            console.error('[ServiceWorker] Falha ao adicionar arquivos ao cache durante install:', error);
+            // Verificar quais URLs falharam pode ajudar a depurar caminhos errados
+            console.error('URLs que tentamos cachear:', listaUrlsParaCache);
+            // Não impede a instalação, mas o cache pode estar incompleto
+          });
       })
       .then(() => {
-        console.log('[ServiceWorker] Instalação completa, App Shell cacheado.');
-        return self.skipWaiting(); // Força o novo SW a ativar
+        console.log('[ServiceWorker] Conteúdo estático cacheado. Ativando...');
+        // Força o novo Service Worker a assumir o controle imediatamente
+        return self.skipWaiting();
       })
       .catch((error) => {
-        console.error('[ServiceWorker] Falha ao cachear o App Shell:', error);
+        console.error('[ServiceWorker] Erro geral durante instalação:', error);
       })
   );
 });
 
 // Evento 'activate': Limpa caches antigos
 self.addEventListener('activate', (event) => {
-  console.log('[ServiceWorker] Ativando...');
+  console.log('[ServiceWorker] Ativando v3...');
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
-          // Deleta caches que não sejam o cache atual
+          // Deleta caches que NÃO sejam o cache atual definido em CACHE_NOME
           if (cacheName !== CACHE_NOME) {
             console.log('[ServiceWorker] Limpando cache antigo:', cacheName);
             return caches.delete(cacheName);
@@ -51,64 +68,66 @@ self.addEventListener('activate', (event) => {
         })
       );
     }).then(() => {
-        console.log('[ServiceWorker] Ativado e pronto para controlar a página.');
-        return self.clients.claim(); // Torna-se o SW controlador imediatamente
+        console.log('[ServiceWorker] Caches antigos limpos. Assumindo controle...');
+        // Garante que o SW controle a página imediatamente após ativação
+        return self.clients.claim();
     })
   );
 });
 
-// Evento 'fetch': Intercepta requisições
-// Estratégia: Stale-While-Revalidate (Rápido, mas atualiza em background)
-// Para o App Shell (HTML, CSS, JS) - Cache first, fallback to network.
-// Para todo o resto (Firebase, CDNs, Imagens) - Network first, fallback to cache.
-
+// Evento 'fetch': Intercepta requisições de rede
 self.addEventListener('fetch', (event) => {
-  const requestUrl = new URL(event.request.url);
+  const request = event.request;
+  const url = new URL(request.url);
 
-  // Se a requisição for para nosso próprio domínio (App Shell)
-  if (requestUrl.origin === self.location.origin) {
-    // Estratégia: Cache first, fallback to network
-    event.respondWith(
-      caches.match(event.request)
-        .then((response) => {
-          // Se tiver no cache, retorna
-          if (response) {
-            // console.log(`[ServiceWorker] Servindo do cache: ${event.request.url}`);
-            return response;
-          }
-          // Se não, busca na rede
-          // console.log(`[ServiceWorker] Buscando na rede: ${event.request.url}`);
-          return fetch(event.request).then((networkResponse) => {
-              // Clona a resposta para poder salvar no cache e retornar
+  // Ignora requisições que não são GET (como POST para login, etc.)
+  // Ignora requisições para a API do Chrome Extensions
+  if (request.method !== 'GET' || url.protocol === 'chrome-extension:') {
+    // console.log('[ServiceWorker] Ignorando requisição não-GET ou chrome-extension:', request.method, request.url);
+    // Deixa a requisição seguir normalmente para a rede, sem interceptar
+    return;
+  }
+
+  // Estratégia: Cache First (Tenta o cache, se falhar, vai pra rede)
+  // Boa para assets estáticos (App Shell)
+  event.respondWith(
+    caches.match(request)
+      .then((cachedResponse) => {
+        // Se encontrou no cache, retorna a resposta do cache
+        if (cachedResponse) {
+          // console.log('[ServiceWorker] Servindo do Cache:', request.url);
+          return cachedResponse;
+        }
+
+        // Se não encontrou no cache, busca na rede
+        // console.log('[ServiceWorker] Buscando na Rede:', request.url);
+        return fetch(request)
+          .then((networkResponse) => {
+            // Verifica se a resposta da rede foi bem-sucedida
+            if (networkResponse && networkResponse.ok) {
+              // Clona a resposta para poder salvar no cache E retornar ao navegador
               const responseToCache = networkResponse.clone();
+              // Abre o cache e salva a resposta da rede
               caches.open(CACHE_NOME)
                 .then((cache) => {
-                  cache.put(event.request, responseToCache);
+                  // console.log('[ServiceWorker] Cacheando resposta da rede:', request.url);
+                  cache.put(request, responseToCache);
                 });
-              return networkResponse;
+            } else if (networkResponse) {
+                // Loga respostas não-ok (ex: 404) mas não lança erro necessariamente
+                console.warn('[ServiceWorker] Resposta da rede não foi OK:', networkResponse.status, request.url);
             }
-          ).catch((error) => {
-            console.error('[ServiceWorker] Falha no fetch (App Shell):', error);
-            // Poderíamos retornar uma página offline aqui
+            // Retorna a resposta original da rede (mesmo se não for 'ok', para o navegador lidar)
+            return networkResponse;
+          })
+          .catch((error) => {
+            // Falha ao buscar na rede (offline?)
+            console.error('[ServiceWorker] Falha no fetch (rede indisponível?):', request.url, error);
+            // Poderia retornar uma página offline padrão aqui, se tivesse uma
+            // return new Response("Você está offline.", { headers: { 'Content-Type': 'text/plain' }});
+            // Ou simplesmente deixar o navegador mostrar o erro padrão de offline
+            throw error; // Propaga o erro
           });
-        })
-    );
-  } else {
-    // Para requisições de terceiros (Firebase, CDNs)
-    // Estratégia: Network first, fallback to cache (Stale-While-Revalidate)
-    event.respondWith(
-      caches.open(CACHE_NOME).then((cache) => {
-        return fetch(event.request).then((networkResponse) => {
-          // Deu certo na rede? Ótimo. Salva no cache e retorna.
-          // console.log(`[ServiceWorker] Buscando na rede (3rd party): ${event.request.url}`);
-          cache.put(event.request, networkResponse.clone());
-          return networkResponse;
-        }).catch(() => {
-          // Falhou na rede? Tenta pegar do cache.
-          // console.log(`[ServiceWorker] Rede falhou, servindo do cache (3rd party): ${event.request.url}`);
-          return cache.match(event.request);
-        });
       })
-    );
-  }
+  );
 });
