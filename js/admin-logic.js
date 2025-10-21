@@ -195,9 +195,9 @@ function initializeAdminPanel(adminUid, db) {
             teamName: newTeam.trim() || "Equipe" // Padrão se vazio
         };
 
-        // Atualiza o perfil privado E o perfil público
+        // Atualiza o perfil privado E o perfil público (para manter sincronia)
         updates[`/users/${uid}/profile`] = profileData;
-        updates[`/publicProfiles/${uid}`] = profileData; // Espelha no perfil público
+        updates[`/publicProfiles/${uid}`] = profileData; 
 
         db.ref().update(updates)
             .then(() => {
@@ -252,7 +252,7 @@ function initializeAdminPanel(adminUid, db) {
     }
 
     function deleteUser(uid, name) {
-        if (!confirm(`ATENÇÃO!\n\nTem certeza que deseja EXCLUIR PERMANENTEMENTE o usuário ${name}?\n\TODOS os dados (perfil, corridas) serão apagados e não poderão ser recuperados.\n\n(Obs: O login do usuário ainda precisará ser excluído manualmente no painel do Firebase Authentication).`)) return;
+        if (!confirm(`ATENÇÃO!\n\nTem certeza que deseja EXCLUIR PERMANENTEMENTE o usuário ${name}?\n\TODOS os dados (perfil, corridas) serão apagados e não poderão ser recuperados.\n\n(Obs: O login do usuário ainda precisará ser excluído manually no painel do Firebase Authentication).`)) return;
         
         const updates = {};
         updates[`/users/${uid}`] = null; 
@@ -420,9 +420,8 @@ function initializeAdminPanel(adminUid, db) {
 
     function uploadFinalRanking(rankingData) {
         updateStatus("Enviando ranking final...", "loading", 'ranking');
-        // **** CORREÇÃO DO MEU TYPO ANTERIOR ****
-        // O caminho correto é 'rankingCopaAlcer'
-        db.ref('rankingCopaAlcer').set(rankingData) 
+        // NOTA: O V2 envia para 'rankingCopaAlcer'. (Corrigido do erro anterior)
+        db.ref('rankingCopaAlcer').set(rankingData)
             .then(() => updateStatus("Ranking final atualizado com sucesso!", "success", 'ranking'))
             .catch(error => updateStatus(`Falha no envio: ${error.message}`, "error", 'ranking'));
     }
