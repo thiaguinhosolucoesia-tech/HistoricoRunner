@@ -295,7 +295,7 @@ body {
     margin-bottom: 20px;
     font-size: 1.8em;
     font-weight: 700;
-    position: relative; /* NOVO: Para posicionar o botão de toggle */
+    position: relative; 
 }
 
 /* NOVO: Estilos para o botão de toggle e estado recolhido */
@@ -311,7 +311,6 @@ body {
     border: 1px solid rgba(0,0,0,0.2);
     border-radius: 8px;
     cursor: pointer;
-    /* Reutiliza o estilo de .auth-btn */
     background: rgba(255, 255, 255, 0.2);
     color: #1f2027;
     border: 1px solid rgba(0, 0, 0, 0.2);
@@ -1134,4 +1133,24 @@ dialog::backdrop {
         max-height: 100vh;
         border-radius: 0;
     }
+
+    /* NOVO: Correção do Botão Admin Toggle em Mobile */
+    #admin-panel {
+        padding-left: 15px;
+        padding-right: 15px;
+    }
+    #admin-panel h2 {
+        font-size: 1.5em; /* Reduz um pouco o título */
+        padding-right: 0; /* Remove padding se houver */
+        position: relative;
+    }
+    #admin-toggle-btn {
+        position: static; /* Remove o absolute */
+        transform: none; /* Remove o transform */
+        display: block; /* Vira um bloco */
+        width: 100%; /* Ocupa largura total */
+        margin-top: 15px; /* Espaço do título */
+        font-size: 1em; /* Tamanho de botão normal */
+    }
+    /* FIM DA CORREÇÃO */
 }
