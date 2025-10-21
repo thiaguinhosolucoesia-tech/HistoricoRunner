@@ -1,5 +1,5 @@
 // Define o nome do cache
-const CACHE_NOME = 'curriculo-corredores-v1';
+const CACHE_NOME = 'curriculo-corredores-v2';
 
 // Lista de arquivos exatos do seu projeto para o App Shell
 // Caminhos relativos para funcionar no GitHub Pages
