@@ -139,6 +139,16 @@ body {
 #btn-back-to-public:hover {
      background: rgba(0, 0, 0, 0.4);
 }
+/* [NOVO ESTILO ADICIONADO] */
+#btn-back-to-my-dashboard {
+    position: absolute;
+    top: 15px;
+    left: 20px;
+    background: rgba(0, 0, 0, 0.2);
+}
+#btn-back-to-my-dashboard:hover {
+     background: rgba(0, 0, 0, 0.4);
+}
 
 /* Forms Genéricos (V1 + V2) */
 .form-group {
@@ -474,6 +484,21 @@ body {
 .profile-card p {
     font-size: 0.9em;
     color: #b0b0b0;
+}
+/* [NOVOS ESTILOS ADICIONADOS] */
+.public-profile-list-section {
+    padding: 20px 30px;
+    background: #1f2027; /* Fundo correspondente */
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+.public-profile-list-section .section-title {
+    font-size: 1.8em; /* Corresponde ao h2 do #public-view */
+    color: #c5cae9;
+    margin-bottom: 20px;
+    padding: 0;
+}
+.public-profile-list-section .profile-list {
+    margin-bottom: 0; /* Remove a margem extra */
 }
 
 /* ================================================= */
@@ -1024,6 +1049,13 @@ dialog::backdrop {
         max-width: 100%;
     }
     #btn-back-to-public {
+        top: 15px;
+        left: 10px;
+        padding: 8px 10px;
+        font-size: 0.8em;
+    }
+    /* [NOVO ESTILO ADICIONADO] */
+    #btn-back-to-my-dashboard {
         top: 15px;
         left: 10px;
         padding: 8px 10px;
