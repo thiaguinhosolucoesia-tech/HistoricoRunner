@@ -18,15 +18,18 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '18' # Versão LTS recomendada
-          # cache: 'npm'  # <-- LINHA REMOVIDA/COMENTADA
+          # Linha 'cache: npm' FOI REMOVIDA daqui
 
       # Passo 3: Instala a biblioteca 'firebase-admin' necessária pelo script
       # (Instalação ocorre na máquina virtual da Action, não na sua)
       - name: Instalar Dependências
-        run: npm install firebase-admin --omit=dev --no-package-lock
+        # Usa '--no-save' para não tentar modificar package.json/lock, se existirem
+        # Usa '--no-package-lock' para explicitamente não usar lock file
+        # Usa '--omit=dev' para pular dependências de desenvolvimento
+        run: npm install firebase-admin --omit=dev --no-save --no-package-lock
 
-      # Passo 4: Executa o script Node.js
-      # Passa os segredos como variáveis de ambiente para o script
+      # Passo 4: Executa o script Node.js que lê o RTDB e commita os JSONs
+      # Passa os segredos (que você configurou no GitHub) como variáveis de ambiente para o script
       - name: Ler RTDB e Commitar Arquivos JSON
         run: node ./scripts/publish_data.js # Caminho para o script
         env:
