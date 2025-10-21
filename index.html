@@ -6,6 +6,11 @@
     <title>Currículo de Corredores - thIAguinho Soluções</title>
     <link rel="stylesheet" href="css/styles.css">
     <link href="https://cdn.jsdelivr.net/npm/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
+    
+    <link rel="manifest" href="manifest.json">
+
+    <meta name="theme-color" content="#007bff">
+
 </head>
 <body>
 
@@ -331,6 +336,22 @@
     <script src="js/config.js"></script>
     <script src="js/admin-logic.js"></script>
     <script src="js/main-logic.js"></script>
+
+    <script>
+        // Registra o Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js')
+                    .then(registration => {
+                        console.log('ServiceWorker registrado com sucesso no escopo:', registration.scope);
+                    })
+                    .catch(error => {
+                        console.error('Falha no registro do ServiceWorker:', error);
+                    });
+            });
+        }
+    </script>
+    <link rel="apple-touch-icon" href="icons/icon-192x192.png">
 
 </body>
 </html>
