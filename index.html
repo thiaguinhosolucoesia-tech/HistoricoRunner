@@ -4,11 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Currículo de Corredores - thIAguinho Soluções</title>
-    <link rel="stylesheet" href="css/styles.css">
-    <link href="https://cdn.jsdelivr.net/npm/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css"> <link href="https://cdn.jsdelivr.net/npm/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
 
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#007bff">
+    <link rel="manifest" href="manifest.json"> <meta name="theme-color" content="#007bff">
+
 </head>
 <body>
 
@@ -32,9 +31,11 @@
             <h2>⚙️ Painel de Admin</h2>
 
             <div class="admin-grid">
-                <div class="admin-section" id="admin-users-section">
-                    <h3 class="admin-section-toggle"> Gestão de Usuários
-                        <i class='bx bxs-chevron-down admin-toggle-icon'></i> </h3>
+                 <div class="admin-section" id="admin-users-section">
+                    <h3 class="admin-section-toggle">
+                        Gestão de Usuários
+                        <i class='bx bxs-chevron-down admin-toggle-icon'></i>
+                    </h3>
                     <div class="admin-section-content"> <h4>Aprovações Pendentes</h4>
                         <div id="pending-list">
                             <div class="loader" style="color:#1f2027;">Carregando...</div>
@@ -48,70 +49,47 @@
                 </div>
 
                 <div class="admin-section" id="admin-races-section">
-                     <h3 class="admin-section-toggle"> Gestão de Corridas e Dados
-                        <i class='bx bxs-chevron-down admin-toggle-icon'></i> </h3>
+                     <h3 class="admin-section-toggle">
+                        Gestão de Corridas e Dados
+                        <i class='bx bxs-chevron-down admin-toggle-icon'></i>
+                    </h3>
                      <div class="admin-section-content"> <div>
-                            <h4 id="form-title">Cadastrar Nova Corrida</h4> <form id="race-form-admin">
+                            <h4 id="form-title">Cadastrar Nova Corrida</h4>
+                            <form id="race-form-admin">
                                 <input type="hidden" id="race-id-admin">
-                                <div class="form-group">
-                                    <label for="race-name">Nome da Corrida</label>
-                                    <input type="text" id="race-name" class="form-input" required>
-                                </div>
-                                <div class="form-group">
-                                    <label for="race-city">Cidade</label>
-                                    <input type="text" id="race-city" class="form-input" required>
-                                </div>
-                                <div class="form-group">
-                                    <label for="race-date-admin">Data</label>
-                                    <input type="date" id="race-date-admin" class="form-input" required style="color-scheme: dark;">
-                                </div>
-                                 <div class="form-group">
-                                    <label for="race-link">Link de Inscrição (Opcional)</label>
-                                    <input type="url" id="race-link" placeholder="https://..." class="form-input">
-                                </div>
-                                <div class="form-group">
-                                    <label for="race-calendar">Calendário</label>
-                                    <select id="race-calendar" class="form-input">
-                                        <option value="copaAlcer">Copa Alcer</option>
-                                        <option value="geral">Corrida da Região</option>
-                                    </select>
-                                </div>
-                                <div class="form-buttons-inline">
-                                    <button type="submit" class="btn btn-primary">Salvar Corrida</button>
-                                    <button type="reset" id="clear-form-button" class="btn btn-secondary">Limpar</button>
-                                </div>
+                                <div class="form-group"> <label for="race-name">Nome</label> <input type="text" id="race-name" class="form-input" required> </div>
+                                <div class="form-group"> <label for="race-city">Cidade</label> <input type="text" id="race-city" class="form-input" required> </div>
+                                <div class="form-group"> <label for="race-date-admin">Data</label> <input type="date" id="race-date-admin" class="form-input" required style="color-scheme: dark;"> </div>
+                                <div class="form-group"> <label for="race-link">Link Inscrição</label> <input type="url" id="race-link" placeholder="https://" class="form-input"> </div>
+                                <div class="form-group"> <label for="race-calendar">Calendário</label> <select id="race-calendar" class="form-input"> <option value="copaAlcer">Copa Alcer</option> <option value="geral">Região</option> </select> </div>
+                                <div class="form-buttons-inline"> <button type="submit" class="btn btn-primary">Salvar</button> <button type="reset" id="clear-form-button" class="btn btn-secondary">Limpar</button> </div>
                             </form>
                         </div>
 
                         <div id="admin-race-lists">
-                            <h4>Corridas Cadastradas</h4> <h5 class="admin-race-list-title">Copa Alcer</h5> <div id="copa-race-list" class="admin-race-list">
-                                <div class="loader" style="color:#1f2027;">...</div>
-                            </div>
-                            <h5 class="admin-race-list-title">Corridas da Região</h5> <div id="geral-race-list" class="admin-race-list">
-                                <div class="loader" style="color:#1f2027;">...</div>
-                            </div>
+                            <h4>Corridas Cadastradas</h4>
+                            <h5 class="admin-race-list-title">Copa Alcer</h5>
+                            <div id="copa-race-list" class="admin-race-list"> <div class="loader...">...</div> </div>
+                            <h5 class="admin-race-list-title">Região</h5>
+                            <div id="geral-race-list" class="admin-race-list"> <div class="loader...">...</div> </div>
                         </div>
 
                         <div id="admin-upload-section">
-                            <h4>Upload de Dados</h4> <div class="form-group">
-                                <h5 class="admin-race-list-title">Resultados de Etapa Individual</h5> <p class="form-help-text">Use para adicionar os resultados de uma corrida recém-realizada.</p>
-                                <label for="race-select-results">Selecione a Etapa</label>
-                                <select id="race-select-results" class="form-input"></select>
-                            </div>
+                            <h4>Upload de Dados</h4>
                             <div class="form-group">
-                                <label for="results-file">Arquivo de Resultados (.json)</label>
-                                <input type="file" id="results-file" accept=".json" class="form-input-file"/>
+                                <h5 class="admin-race-list-title">Resultados Etapa</h5>
+                                <p class="form-help-text">Adicionar resultados .json de uma corrida.</p>
+                                <label for="race-select-results">Selecione Etapa</label> <select id="race-select-results" class="form-input"></select>
                             </div>
-                            <button id="upload-results-button" class="btn btn-primary">Enviar Resultados</button>
-                            <p id="upload-results-status" class="upload-status"></p>
+                            <div class="form-group"> <label for="results-file">Arquivo Resultados</label> <input type="file" id="results-file" accept=".json" class="form-input-file"/> </div>
+                            <button id="upload-results-button" class="btn btn-primary">Enviar Resultados</button> <p id="upload-results-status" class="upload-status"></p>
 
                             <div class="form-group" style="margin-top: 20px; border-top: 1px dashed #5f4c00; padding-top: 20px;">
-                                 <h5 class="admin-race-list-title">Ranking Final da Copa</h5> <p class="form-help-text">Use para substituir todo o ranking geral da Copa com um arquivo consolidado.</p>
-                                 <label for="ranking-file">Arquivo de Ranking Final (.json)</label>
-                                 <input type="file" id="ranking-file" accept=".json" class="form-input-file"/>
+                                 <h5 class="admin-race-list-title">Ranking Final</h5>
+                                 <p class="form-help-text">Substituir ranking .json completo.</p>
+                                 <label for="ranking-file">Arquivo Ranking</label> <input type="file" id="ranking-file" accept=".json" class="form-input-file"/>
                             </div>
-                            <button id="upload-ranking-button" class="btn btn-primary">Enviar Ranking Final</button>
-                            <p id="upload-ranking-status" class="upload-status"></p>
+                            <button id="upload-ranking-button" class="btn btn-primary">Enviar Ranking</button> <p id="upload-ranking-status" class="upload-status"></p>
                         </div>
                      </div>
                 </div>
@@ -124,19 +102,16 @@
                 <h2 id="login-title">Acessar Meu Currículo</h2>
                 <form id="login-form">
                     <input type="email" id="login-email" placeholder="E-mail" required>
-                    <input type="password" id="login-password" placeholder="Senha (mín. 6 caracteres)" required>
-
+                    <input type="password" id="login-password" placeholder="Senha (mín. 6)" required>
                     <div id="signup-fields" class="hidden">
                         <input type="text" id="signup-runner1-name" placeholder="Seu nome (Ex: Thiago)" required>
-                        <input type="text" id="signup-runner2-name" placeholder="Nome Corredor 2 (Opcional, Ex: Thamis)">
-                        <input type="text" id="signup-team-name" placeholder="Nome da Equipe (Ex: Le Runners)">
+                        <input type="text" id="signup-runner2-name" placeholder="Nome Corredor 2 (Opcional)">
+                        <input type="text" id="signup-team-name" placeholder="Nome da Equipe">
                     </div>
-
                     <div class="login-buttons">
                          <button type="button" class="auth-btn btn-primary" id="btn-login-submit">Entrar</button>
                          <button type="button" class="auth-btn" id="btn-signup-submit">Cadastrar</button>
                     </div>
-
                     <div id="login-error"></div>
                     <a id="login-toggle-link">Não tem conta? Cadastre-se</a>
                 </form>
@@ -145,116 +120,76 @@
             <div id="public-view" class="hidden">
                 <h2>Currículos Públicos</h2>
                 <div class="profile-list" id="public-profile-list-public">
-                    <div class="loader">Carregando perfis públicos...</div>
+                    <div class="loader">Carregando...</div>
                 </div>
-
                 <div class="public-calendar-section">
                     <h2 class="section-title">Próximas Etapas - <span class="text-blue-highlight">Copa Alcer</span></h2>
-                    <div id="copa-container-public" class="calendar-grid">
-                        <p class="loader">Carregando calendário da Copa...</p>
-                    </div>
-
-                    <h2 class="section-title">Resultados de Etapas Anteriores</h2>
-                    <div id="resultados-container-public" class="calendar-grid">
-                        <p class="loader">Carregando resultados...</p>
-                    </div>
-
-                    <h2 class="section-title">Outras Corridas da Região</h2>
-                    <div id="geral-container-public" class="calendar-grid">
-                        <p class="loader">Carregando outras corridas...</p>
-                    </div>
+                    <div id="copa-container-public" class="calendar-grid"><p class="loader">Carregando...</p></div>
+                    <h2 class="section-title">Resultados Anteriores</h2>
+                    <div id="resultados-container-public" class="calendar-grid"><p class="loader">Carregando...</p></div>
+                    <h2 class="section-title">Outras Corridas</h2>
+                    <div id="geral-container-public" class="calendar-grid"><p class="loader">Carregando...</p></div>
                 </div>
-
             </div>
         </div>
 
         <div id="pending-approval-view" class="hidden">
-            <h2>⏳ Cadastro Recebido</h2>
-            <p>Sua conta foi criada com sucesso e está aguardando a aprovação do administrador. Você será liberado em breve.</p>
+            <h2>⏳ Cadastro Recebido</h2> <p>Aguardando aprovação do admin.</p>
         </div>
-
         <div id="rejected-view" class="hidden">
-            <h2>❌ Acesso Recusado</h2>
-            <p>O cadastro para o e-mail <b id="rejected-email"></b> não foi aprovado pelo administrador. Entre em contato para mais informações.</p>
+            <h2>❌ Acesso Recusado</h2> <p>Cadastro para <b id="rejected-email"></b> não aprovado.</p>
         </div>
 
         <div id="user-content" class="hidden">
             <div class="dashboard-section">
-                <h2 class="dashboard-header">Dashboard de Performance</h2>
+                <h2 class="dashboard-header">Dashboard Performance</h2>
                 <h3 class="dashboard-subheader">Recordes Pessoais (PRs)</h3>
-                <div class="stats-grid" id="pr-grid">
-                    <div class="loader">Carregando PRs...</div>
-                </div>
+                <div class="stats-grid" id="pr-grid"><div class="loader">Carregando...</div></div>
                 <h3 class="dashboard-subheader" style="margin-top: 30px;">Estatísticas Gerais</h3>
-                <div class="stats-grid" id="summary-grid">
-                    <div class="loader">Calculando...</div>
-                </div>
+                <div class="stats-grid" id="summary-grid"><div class="loader">Calculando...</div></div>
             </div>
-
             <div class="controls-section hidden" id="controls-section">
-                <button class="btn-add" id="btn-add-new">➕ Adicionar Nova Corrida Pessoal</button>
+                <button class="btn-add" id="btn-add-new">➕ Adicionar Corrida Pessoal</button>
             </div>
-
             <div class="history-section">
                 <h2 class="dashboard-header">Meu Histórico Pessoal</h2>
-                <div id="history-container">
-                    <div class="loader">Carregando histórico do Firebase...</div>
-                </div>
+                <div id="history-container"><div class="loader">Carregando...</div></div>
             </div>
-
             <div class="public-profile-list-section">
                 <h2 class="section-title">Outros Currículos Públicos</h2>
-                <div class="profile-list" id="public-profile-list-logged">
-                    <div class="loader">Carregando perfis públicos...</div>
-                </div>
+                <div class="profile-list" id="public-profile-list-logged"><div class="loader">Carregando...</div></div>
             </div>
-
             <div class="public-calendar-section" style="background: #1a1a2e; padding-top: 20px;">
                 <h2 class="section-title">Próximas Etapas - <span class="text-blue-highlight">Copa Alcer</span></h2>
-                <div id="copa-container-logged" class="calendar-grid">
-                    <p class="loader">Carregando calendário da Copa...</p>
-                </div>
-
-                <h2 class="section-title">Resultados de Etapas Anteriores</h2>
-                <div id="resultados-container-logged" class="calendar-grid">
-                    <p class="loader">Carregando resultados...</p>
-                </div>
-
-                <h2 class="section-title">Outras Corridas da Região</h2>
-                <div id="geral-container-logged" class="calendar-grid">
-                    <p class="loader">Carregando outras corridas...</p>
-                </div>
+                <div id="copa-container-logged" class="calendar-grid"><p class="loader">Carregando...</p></div>
+                <h2 class="section-title">Resultados Anteriores</h2>
+                <div id="resultados-container-logged" class="calendar-grid"><p class="loader">Carregando...</p></div>
+                <h2 class="section-title">Outras Corridas</h2>
+                <div id="geral-container-logged" class="calendar-grid"><p class="loader">Carregando...</p></div>
             </div>
-
         </div>
 
         <div class="footer">
-            Potencialize seus treinos e resultados com soluções digitais.
-            <a href="https://thiaguinhosolucoesia-tech.github.io/thIAguinhoSolucoes/" target="_blank" rel="noopener noreferrer">
-                Desenvolvido com 🤖 por <strong>thIAguinho Soluções</strong>
-            </a>
+            Desenvolvido com 🤖 por <a href="https://thiaguinhosolucoesia-tech.github.io/thIAguinhoSolucoes/" target="_blank" rel="noopener noreferrer"><strong>thIAguinho Soluções</strong></a>
         </div>
     </div>
 
     <dialog id="race-modal">
         <form id="race-form">
             <input type="hidden" id="race-id">
-            <div class="modal-header">
-                <h2 id="modal-title">Adicionar Nova Corrida</h2>
-                <button type="button" class="btn-control" id="btn-close-modal" aria-label="Fechar">✖️</button>
-            </div>
-            <div class="modal-body">
-                </div>
-            <div class="modal-footer">
-                <button type="button" class="btn hidden" id="btn-delete">Excluir</button>
-                <button type="button" class="btn btn-secondary" id="btn-cancel">Cancelar</button>
-                <button type="submit" class="btn btn-primary" id="btn-save">Salvar</button>
-            </div>
+            <div class="modal-header"> <h2 id="modal-title">...</h2> <button type="button" class="btn-control" id="btn-close-modal" aria-label="Fechar">✖️</button> </div>
+            <div class="modal-body"> </div>
+            <div class="modal-footer"> <button type="button" class="btn hidden" id="btn-delete">Excluir</button> <button type="button" class="btn btn-secondary" id="btn-cancel">Cancelar</button> <button type="submit" class="btn btn-primary" id="btn-save">Salvar</button> </div>
         </form>
     </dialog>
 
     <div id="modal-overlay" class="v2-modal-overlay hidden">
+        <div id="results-modal" class="v2-modal-content">
+            <button id="btn-close-results-modal" class="v2-modal-close-btn">&times;</button>
+            <div class="v2-modal-header"> <h2 id="modal-title-results" class="v2-modal-title">Resultados</h2> </div>
+            <div class="v2-modal-body"> <input type="text" id="modal-search-input" placeholder="Buscar atleta..." class="form-input"> <div id="modal-content-results" class="v2-modal-results-container"></div> </div>
         </div>
+    </div>
 
     <dialog id="user-edit-modal">
         <form id="user-edit-form">
@@ -264,19 +199,10 @@
                 <button type="button" class="btn-control" id="user-edit-btn-close-modal" aria-label="Fechar">✖️</button>
             </div>
             <div class="modal-body">
-                <div class="form-group full-width">
-                    <label for="user-edit-runner1-name">Nome Corredor 1 (Obrigatório)</label>
-                    <input type="text" id="user-edit-runner1-name" class="form-input" required>
-                </div>
-                <div class="form-group full-width">
-                    <label for="user-edit-runner2-name">Nome Corredor 2 (Deixe em branco para remover)</label>
-                    <input type="text" id="user-edit-runner2-name" class="form-input">
-                </div>
-                <div class="form-group full-width">
-                    <label for="user-edit-team-name">Nome da Equipe</label>
-                    <input type="text" id="user-edit-team-name" class="form-input">
-                </div>
-                <div id="user-edit-error" style="color: red; grid-column: 1 / -1; text-align: center;"></div>
+                <div class="form-group full-width"> <label for="user-edit-runner1-name">Nome Corredor 1</label> <input type="text" id="user-edit-runner1-name" class="form-input" required> </div>
+                <div class="form-group full-width"> <label for="user-edit-runner2-name">Nome Corredor 2 (branco=remover)</label> <input type="text" id="user-edit-runner2-name" class="form-input"> </div>
+                <div class="form-group full-width"> <label for="user-edit-team-name">Nome da Equipe</label> <input type="text" id="user-edit-team-name" class="form-input"> </div>
+                <div id="user-edit-error" style="color: red; grid-column: 1 / -1; text-align: center; min-height: 1.2em;"></div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" id="user-edit-btn-cancel">Cancelar</button>
@@ -288,29 +214,19 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 
-    <script src="js/config.js"></script>
-    <script src="js/admin-logic.js"></script>
-    <script src="js/main-logic.js"></script>
-
-    <script>
-        // Registra o Service Worker (Caminho e Escopo ajustados para GitHub Pages)
+    <script src="js/config.js"></script> <script src="js/admin-logic.js"></script> <script src="js/main-logic.js"></script> <script>
+        // Registra o Service Worker (Caminho raiz original)
         if ('serviceWorker' in navigator) {
-            // Ajuste o caminho se seu sw.js não estiver na raiz do repositório
-            const swPath = '/HistoricoRunner/sw.js';
-            const swScope = '/HistoricoRunner/';
-
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register(swPath, { scope: swScope })
+                navigator.serviceWorker.register('/sw.js') // Caminho raiz original
                     .then(registration => {
-                        console.log('ServiceWorker registrado com sucesso:', registration.scope);
+                        console.log('SW registrado:', registration.scope);
                     })
                     .catch(error => {
-                        console.error('Falha no registro do ServiceWorker:', error);
+                        console.error('Falha SW:', error);
                     });
             });
         }
     </script>
-    <link rel="apple-touch-icon" href="icons/icon-192x192.png">
-
-</body>
+    <link rel="apple-touch-icon" href="icons/icon-192x192.png"> </body>
 </html>
