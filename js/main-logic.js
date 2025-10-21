@@ -18,6 +18,7 @@ let firebaseApp, database, auth;
 let authUser = null; 
 let currentViewingUid = null; 
 let isAdmin = false; 
+let hasRunner2 = false; // [NOVA FLAG GLOBAL]
 
 const RUNNER_1_KEY = "runner1";
 const RUNNER_2_KEY = "runner2";
@@ -133,6 +134,8 @@ function calculatePace(timeStr, distance) {
 
 function updateProfileUI() {
     const profile = db.profile;
+    hasRunner2 = false; // [CORREÇÃO] Reseta a flag
+    
     // Define perfis padrão
     RUNNER_1_PROFILE = { name: 'Corredor 1', nameShort: 'Corredor 1', emoji: '🏃‍♂️' };
     RUNNER_2_PROFILE = { name: 'Corredora 2', nameShort: 'Corredora 2', emoji: '🏃‍♀️' };
@@ -143,6 +146,7 @@ function updateProfileUI() {
     }
      // Corrigido para verificar se runner2Name existe e não é string vazia
     if (profile && profile.runner2Name && profile.runner2Name.trim() !== "") {
+         hasRunner2 = true; // [CORREÇÃO] Seta a flag
          RUNNER_2_PROFILE = { name: profile.runner2Name, nameShort: profile.runner2Name.split(' ')[0] || "Corredora", emoji: '🏃‍♀️' };
          dom.runner2FormGroup.classList.remove('hidden');
     } else {
@@ -151,7 +155,7 @@ function updateProfileUI() {
 
     // Atualiza o header para mostrar "Corredor 1 & Corredor 2" ou apenas "Corredor 1"
     let headerTitle = RUNNER_1_PROFILE.name;
-    if (RUNNER_2_PROFILE.name !== 'Corredora 2' && RUNNER_2_PROFILE.name.trim() !== "") {
+    if (hasRunner2) { // [CORREÇÃO] Usa a flag
         headerTitle += ` & ${RUNNER_2_PROFILE.name}`;
     }
     dom.headerSubtitle.textContent = headerTitle;
@@ -199,25 +203,55 @@ function renderDashboard() {
         }
     });
 
-    dom.prGrid.innerHTML = distances.map(d => `
+    // [INÍCIO DA CORREÇÃO - PR Grid]
+    dom.prGrid.innerHTML = distances.map(d => {
+        const runner2PR_HTML = hasRunner2
+            ? `<div class="runner-pr"><strong class="runner-pr-thamis">${RUNNER_2_PROFILE.nameShort}: ${prs.runner2[d].time}</strong></div>`
+            : ''; // Não renderiza nada se não houver Corredor 2
+
+        return `
         <div class="stat-card pr-card">
             <div class="stat-label">PR ${d}km</div>
             <div class="stat-number">
                 <div class="runner-pr"><span class="runner-pr-thiago">${RUNNER_1_PROFILE.nameShort}: ${prs.runner1[d].time}</span></div>
-                <div class="runner-pr"><strong class="runner-pr-thamis">${RUNNER_2_PROFILE.nameShort}: ${prs.runner2[d].time}</strong></div>
+                ${runner2PR_HTML}
             </div>
-        </div>`).join('');
+        </div>`;
+    }).join('');
+    // [FIM DA CORREÇÃO - PR Grid]
 
-    dom.summaryGrid.innerHTML = `
-        <div class="stat-card"><div class="stat-number">${completedRacesRunner1 + completedRacesRunner2}</div><div class="stat-label">Corridas Concluídas (Total)</div></div>
-        <div class="stat-card"><div class="stat-number">${totalRacesJuntos} 👩🏻‍❤️‍👨🏻</div><div class="stat-label">Corridas Juntos</div></div>
-        <div class="stat-card"><div class="stat-number">${(totalKmRunner1 + totalKmRunner2).toFixed(1)} km</div><div class="stat-label">Total KM (Casal)</div></div>
-        <div class="stat-card">
+    // [INÍCIO DA CORREÇÃO - Summary Grid]
+    const totalCorridas = completedRacesRunner1 + completedRacesRunner2;
+    const totalCorridasLabel = hasRunner2 ? "Corridas Concluídas (Total)" : "Corridas Concluídas";
+
+    const juntosCardHTML = hasRunner2
+        ? `<div class="stat-card"><div class="stat-number">${totalRacesJuntos} 👩🏻‍❤️‍👨🏻</div><div class="stat-label">Corridas Juntos</div></div>`
+        : '';
+
+    const totalKmCombined = totalKmRunner1 + totalKmRunner2;
+    const totalKmCombinedLabel = hasRunner2 ? "Total KM (Casal)" : "Total KM";
+
+    const splitKmCardHTML = hasRunner2
+        ? `<div class="stat-card">
             <div class="stat-number">
                 <span class="runner-pr-thiago">${totalKmRunner1.toFixed(1)}</span> / <strong class="runner-pr-thamis">${totalKmRunner2.toFixed(1)}</strong>
             </div>
             <div class="stat-label">Total KM (${RUNNER_1_PROFILE.nameShort} / ${RUNNER_2_PROFILE.nameShort})</div>
-        </div>`;
+           </div>`
+        : `<div class="stat-card">
+            <div class="stat-number">
+                ${totalKmRunner1.toFixed(1)} km
+            </div>
+            <div class="stat-label">Total KM (${RUNNER_1_PROFILE.nameShort})</div>
+           </div>`;
+
+    dom.summaryGrid.innerHTML = `
+        <div class="stat-card"><div class="stat-number">${totalCorridas}</div><div class="stat-label">${totalCorridasLabel}</div></div>
+        ${juntosCardHTML}
+        <div class="stat-card"><div class="stat-number">${totalKmCombined.toFixed(1)} km</div><div class="stat-label">${totalKmCombinedLabel}</div></div>
+        ${splitKmCardHTML}
+    `;
+    // [FIM DA CORREÇÃO - Summary Grid]
 }
 
 function renderHistory() {
@@ -300,11 +334,11 @@ function createRaceCard(race) {
         </div>
         <div class="race-card-body">
             ${createRunnerInfoHTML(RUNNER_1_PROFILE, runner1Data, runner1Dist, runner1Pace, 'runner1')}
-            ${(runner2Data && RUNNER_2_PROFILE.name !== 'Corredora 2') ? createRunnerInfoHTML(RUNNER_2_PROFILE, runner2Data, runner2Dist, runner2Pace, 'runner2') : ''}
+            ${(hasRunner2 && runner2Data) ? createRunnerInfoHTML(RUNNER_2_PROFILE, runner2Data, runner2Dist, runner2Pace, 'runner2') : ''}
         </div>
         <div class="race-card-footer">
             <div>
-                <span class="juntos-icon">${race.juntos ? '👩🏻‍❤️‍👨🏻' : ''}</span>
+                <span class="juntos-icon">${(hasRunner2 && race.juntos) ? '👩🏻‍❤️‍👨🏻' : ''}</span>
                 <span class="race-notes">${race.notes || ''}</span>
             </div>
             <div style="display: flex; align-items: center;">
@@ -496,6 +530,17 @@ function loadProfile(uid) {
 
 function loadRaces(uid) {
     currentViewingUid = uid; 
+
+    // [INÍCIO DA CORREÇÃO]
+    // Controla a visibilidade do botão "Adicionar Corrida"
+    // com base em quem está logado vs quem está sendo visto.
+    if (authUser && authUser.uid === currentViewingUid) {
+        dom.controlsSection.classList.remove('hidden');
+    } else {
+        dom.controlsSection.classList.add('hidden');
+    }
+    // [FIM DA CORREÇÃO]
+
     const racesRef = firebase.database().ref(`/users/${uid}/races`);
     
     db.races = {};
@@ -528,11 +573,19 @@ function loadPublicView() {
             const createProfileCard = (uid, profile) => {
                 const card = document.createElement('div');
                 card.className = 'profile-card';
+
+                // [INÍCIO DA CORREÇÃO - Card de Perfil]
+                const runner2HTML = profile.runner2Name && profile.runner2Name.trim() !== ""
+                    ? `<h3 class="runner2-name">${profile.runner2Name}</h3>`
+                    : '';
+
                 card.innerHTML = `
                     <h3>${profile.runner1Name || 'Corredor 1'}</h3>
-                    <h3 class="runner2-name">${profile.runner2Name || ''}</h3>
+                    ${runner2HTML}
                     <p>${profile.teamName || 'Equipe'}</p>
                 `;
+                // [FIM DA CORREÇÃO - Card de Perfil]
+
                 card.addEventListener('click', () => {
                     if (!authUser) {
                         // Usuário DESLOGADO
@@ -633,7 +686,7 @@ function showUserDashboard(user) {
     dom.btnLogout.classList.remove('hidden');
     dom.userInfo.classList.remove('hidden');
     dom.userEmail.textContent = user.email;
-    dom.controlsSection.classList.remove('hidden'); 
+    // dom.controlsSection.classList.remove('hidden'); // Movido para loadRaces
     
     dom.loginOrPublicView.classList.add('hidden');
     dom.pendingApprovalView.classList.add('hidden');
@@ -644,7 +697,7 @@ function showUserDashboard(user) {
     dom.userContent.classList.remove('hidden');
 
     loadProfile(user.uid); // Carrega perfil V1
-    loadRaces(user.uid); // Carrega corridas pessoais V1
+    loadRaces(user.uid); // Carrega corridas pessoais V1 (AGORA CONTROLA O BOTÃO)
     fetchAllData(); // Carrega calendário V2
     loadPublicView(); // Carrega a lista de perfis públicos
     
