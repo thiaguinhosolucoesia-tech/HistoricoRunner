@@ -1,0 +1,41 @@
+name: Publicar Dados Públicos para o Site
+
+# Gatilho: Permite acionamento manual pela interface do GitHub Actions
+on:
+  workflow_dispatch:
+
+jobs:
+  publish-rtdb-data:
+    runs-on: ubuntu-latest # Ambiente onde a automação rodará
+
+    steps:
+      # Passo 1: Clona seu repositório para a máquina virtual da Action
+      - name: Checkout do Repositório
+        uses: actions/checkout@v4 # Usa a versão mais recente
+
+      # Passo 2: Configura o ambiente Node.js para rodar o script
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18' # Versão LTS recomendada
+          cache: 'npm' # Habilita cache de dependências (opcional, mas bom)
+
+      # Passo 3: Instala a biblioteca 'firebase-admin' necessária pelo script
+      # (Instalação ocorre na máquina virtual da Action, não na sua)
+      - name: Instalar Dependências
+        run: npm install firebase-admin --omit=dev --no-package-lock
+
+      # Passo 4: Executa o script Node.js (que você criará no próximo passo)
+      # Passa os segredos (que você configurará no GitHub) como variáveis de ambiente para o script
+      - name: Ler RTDB e Commitar Arquivos JSON
+        run: node ./scripts/publish_data.js # Caminho para o script
+        env:
+          # Segredos que você configurará nas Settings > Secrets and variables > Actions do seu repositório
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
+          FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
+          FIREBASE_DATABASE_URL: ${{ secrets.FIREBASE_DATABASE_URL }}
+          GH_PAT: ${{ secrets.GH_PAT }} # Seu Personal Access Token do GitHub
+          # Informações do repositório passadas automaticamente pela Action
+          GITHUB_REPOSITORY: ${{ github.repository }} # Formato "owner/repo"
+          GITHUB_BRANCH: ${{ github.ref_name }}     # Nome do branch (ex: main)
