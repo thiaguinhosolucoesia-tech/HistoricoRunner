@@ -120,7 +120,7 @@
                     <div class="admin-section" id="admin-publish-section">
                         <h3>🚀 Publicar Site</h3>
                         <p class="form-help-text">Após fazer alterações (aprovar usuários, adicionar corridas, etc.), clique no link abaixo para ir ao GitHub e disparar a atualização do site público.</p>
-                        <a href="https://github.com/SEU_USUARIO/SEU_REPOSITORIO/actions/workflows/publish.yml"
+                        <a href="https://github.com/thiaguinhosolucosia-tech/HistoricoRunner/actions/workflows/publish.yml"
                            target="_blank"
                            rel="noopener noreferrer"
                            id="goToPublishBtn"
@@ -357,10 +357,10 @@
     <script src="js/main-logic.js"></script>
 
     <script>
-        // Registra o Service Worker
+        // Registra o Service Worker (assegure que sw.js está na raiz ou ajuste o caminho)
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('sw.js')
+                navigator.serviceWorker.register('/HistoricoRunner/sw.js', { scope: '/HistoricoRunner/' }) // Ajustado para subdiretório
                     .then(registration => {
                         console.log('ServiceWorker registrado com sucesso no escopo:', registration.scope);
                     })
