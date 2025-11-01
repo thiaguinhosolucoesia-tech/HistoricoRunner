@@ -1,5 +1,5 @@
 // =================================================================
-// ARQUIVO DE LÓGICA DO PAINEL DE ADMIN (V3 - Fundido V1+V2)
+// ARQUIVO DE LÓGICA DO PAINEL DE ADMIN (V4 - Rede Social)
 // =================================================================
 
 // Esta função é o ponto de entrada, chamada pelo main-logic.js se o usuário for admin
@@ -9,7 +9,6 @@ function initializeAdminPanel(adminUid, db) {
     // --- Cache de Elementos DOM do Admin ---
     const adminDom = {
         adminPanel: document.getElementById('admin-panel'),
-        // NOVO - Elementos do Toggle
         adminToggleBtn: document.getElementById('admin-toggle-btn'),
         adminPanelContent: document.getElementById('admin-panel-content'),
         // V1 (Usuários)
@@ -47,8 +46,7 @@ function initializeAdminPanel(adminUid, db) {
 
     // --- Listeners de Eventos do Admin ---
     function addAdminEventListeners() {
-        // NOVO - Listener para o toggle
-        if (adminDom.adminToggleBtn) { // Verificação de segurança
+        if (adminDom.adminToggleBtn) { 
             adminDom.adminToggleBtn.addEventListener('click', toggleAdminPanel);
         }
 
@@ -59,7 +57,6 @@ function initializeAdminPanel(adminUid, db) {
         adminDom.uploadRankingButton.addEventListener('click', handleRankingUpload);
     }
     
-    // NOVO - Função para toggle do admin panel
     function toggleAdminPanel() {
         const isCollapsed = adminDom.adminPanel.classList.toggle('collapsed');
         adminDom.adminToggleBtn.textContent = isCollapsed ? 'Mostrar' : 'Ocultar';
@@ -129,13 +126,11 @@ function initializeAdminPanel(adminUid, db) {
             }
             
             Object.entries(profiles).forEach(([uid, profile]) => {
-                // O Admin não aparece na lista para ser excluído
                 if (uid === adminUid) return; 
                 
                 const item = document.createElement('div');
                 item.className = 'approved-item';
                 
-                // NOVO: Adicionado btn-edit-user e data-attributes
                 item.innerHTML = `
                     <div class="approved-item-info">
                         ${profile.runner1Name} ${profile.runner2Name ? '& ' + profile.runner2Name : ''}
@@ -155,7 +150,6 @@ function initializeAdminPanel(adminUid, db) {
                 adminDom.approvedList.appendChild(item);
             });
 
-            // NOVO: Listener para o botão de editar
             adminDom.approvedList.querySelectorAll('.btn-edit-user').forEach(button => {
                 button.addEventListener('click', (e) => {
                     const data = e.target.dataset;
@@ -172,37 +166,33 @@ function initializeAdminPanel(adminUid, db) {
         });
     }
 
-    // NOVO: Função para editar dados do usuário via prompt
     function editUser(uid, currentR1, currentR2, currentTeam) {
         const newR1 = prompt("Nome Corredor 1:", currentR1);
-        if (newR1 === null) return; // Cancelado
+        if (newR1 === null) return; 
         if (newR1.trim() === "") {
             alert("O 'Nome Corredor 1' não pode ficar vazio.");
             return;
         }
 
         const newR2 = prompt("Nome Corredor 2 (Deixe VAZIO para remover):", currentR2);
-        if (newR2 === null) return; // Cancelado
+        if (newR2 === null) return; 
 
         const newTeam = prompt("Nome da Equipe:", currentTeam);
-        if (newTeam === null) return; // Cancelado
+        if (newTeam === null) return; 
 
         const updates = {};
-        // Define o payload que será salvo
         const profileData = {
             runner1Name: newR1.trim(),
-            runner2Name: newR2.trim() || "", // Salva como string vazia se nulo ou vazio
-            teamName: newTeam.trim() || "Equipe" // Padrão se vazio
+            runner2Name: newR2.trim() || "", 
+            teamName: newTeam.trim() || "Equipe" 
         };
 
-        // Atualiza o perfil privado E o perfil público (para manter sincronia)
         updates[`/users/${uid}/profile`] = profileData;
         updates[`/publicProfiles/${uid}`] = profileData; 
 
         db.ref().update(updates)
             .then(() => {
                 alert(`Usuário ${newR1} atualizado com sucesso!`);
-                // A lista irá recarregar automaticamente por causa do listener '.on("value")'
             })
             .catch((err) => {
                 console.error("Erro ao atualizar usuário:", err);
@@ -252,7 +242,7 @@ function initializeAdminPanel(adminUid, db) {
     }
 
     function deleteUser(uid, name) {
-        if (!confirm(`ATENÇÃO!\n\nTem certeza que deseja EXCLUIR PERMANENTEMENTE o usuário ${name}?\n\TODOS os dados (perfil, corridas) serão apagados e não poderão ser recuperados.\n\n(Obs: O login do usuário ainda precisará ser excluído manually no painel do Firebase Authentication).`)) return;
+        if (!confirm(`ATENÇÃO!\n\nTem certeza que deseja EXCLUIR PERMANENTEMENTE o usuário ${name}?\n\TODOS os dados (perfil, corridas) serão apagados e não poderão ser recuperados.\n\n(Obs: O login do usuário ainda precisará ser excluído manualmente no painel do Firebase Authentication).`)) return;
         
         const updates = {};
         updates[`/users/${uid}`] = null; 
@@ -420,7 +410,6 @@ function initializeAdminPanel(adminUid, db) {
 
     function uploadFinalRanking(rankingData) {
         updateStatus("Enviando ranking final...", "loading", 'ranking');
-        // NOTA: O V2 envia para 'rankingCopaAlcer'. (Corrigido do erro anterior)
         db.ref('rankingCopaAlcer').set(rankingData)
             .then(() => updateStatus("Ranking final atualizado com sucesso!", "success", 'ranking'))
             .catch(error => updateStatus(`Falha no envio: ${error.message}`, "error", 'ranking'));
@@ -430,8 +419,8 @@ function initializeAdminPanel(adminUid, db) {
         const statusElement = target === 'ranking' ? adminDom.uploadRankingStatus : adminDom.uploadResultsStatus;
         statusElement.textContent = message;
         statusElement.className = 'upload-status ';
-        if (type === 'success') statusElement.classList.add('text-green-500'); // Corrigido para verde
-        else if (type === 'error') statusElement.classList.add('text-red-500'); // Corrigido para vermelho
-        else statusElement.classList.add('text-yellow-500'); // Corrigido para amarelo
+        if (type === 'success') statusElement.classList.add('text-green-500'); 
+        else if (type === 'error') statusElement.classList.add('text-red-500'); 
+        else statusElement.classList.add('text-yellow-500'); 
     }
 }
