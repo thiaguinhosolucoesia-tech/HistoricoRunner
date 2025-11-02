@@ -1463,11 +1463,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (typeof CLOUDINARY_CLOUD_NAME === 'undefined' || typeof CLOUDINARY_UPLOAD_PRESET === 'undefined' || !CLOUDINARY_CLOUD_NAME || CLOUDINARY_CLOUD_NAME === "COLE_AQUI_SEU_CLOUD_NAME" || !CLOUDINARY_UPLOAD_PRESET || CLOUDINARY_UPLOAD_PRESET === "COLE_AQUI_SEU_UPLOAD_PRESET") { alert("ERRO CFG Cloudinary"); return; }
     CLOUDINARY_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`; CLOUDINARY_PRESET = CLOUDINARY_UPLOAD_PRESET;
 
-    // VERIFICAÇÃO CRÍTICA (Strava) - CORRIGIDO com verificação de nulidade
-    if (typeof STRAVA_CLIENT_ID === 'undefined' || STRAVA_CLIENT_ID === "SEU_CLIENT_ID_AQUI" || typeof PIPEDREAM_OAUTH_URL === 'undefined' || PIPEDREAM_OAUTH_URL === "URL_DO_SEU_WORKFLOW_1_AQUI" || typeof PIPEDREAM_REFRESH_AND_FETCH_URL === 'undefined' || PIPEDREAM_REFRESH_AND_FETCH_URL === "URL_DO_SEU_WORKFLOW_2_AQUI") {
+    // VERIFICAÇÃO CRÍTICA (Strava) - CORRIGIDO
+    // Não lemos mais as URLs do Pipedream daqui, então removemos essa verificação
+    if (typeof STRAVA_CLIENT_ID === 'undefined' || STRAVA_CLIENT_ID === "SEU_CLIENT_ID_AQUI") {
        console.warn("Integração com Strava não configurada em config.js");
        
-       // CORREÇÃO: SÓ TENTA DESABILITAR O BOTÃO SE ELE EXISTIR
        if (dom.btnConnectStrava) { 
            dom.btnConnectStrava.disabled = true;
            dom.btnConnectStrava.innerHTML = "Strava (não configurado)";
@@ -1511,15 +1511,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- ROTEADOR PRINCIPAL (Auth State Changed) ---
     auth.onAuthStateChanged((user) => {
         
-        // Lógica Strava: Verifica se isso é um retorno OAuth
-        // CORREÇÃO: Movido para depois da verificação do usuário, mas antes da limpeza de URL
-        // handleStravaOAuthCallback(); // << REMOVIDO DAQUI
-        
         const previousUserUid = authUser?.uid; 
         authUser = user;
         
         // Lógica Strava: Verifica se isso é um retorno OAuth
-        // CORREÇÃO: Deve rodar ANTES de limpar listeners, mas DEPOIS de definir authUser
         handleStravaOAuthCallback();
         
         if (previousUserUid && previousUserUid !== user?.uid) { // Limpa listeners do user anterior
@@ -1550,6 +1545,12 @@ document.addEventListener('DOMContentLoaded', () => {
 // ======================================================
 // SEÇÃO V10: LÓGICA DE INTEGRAÇÃO STRAVA
 // ======================================================
+
+// --- CORREÇÃO: URLs do Pipedream movidas do config.js para cá ---
+// Isso evita problemas de cache do GitHub Pages com o config.js
+const HARDCODED_PIPEDREAM_OAUTH_URL = "https://eolhvspjshqice9.m.pipedream.net";
+const HARDCODED_PIPEDREAM_REFRESH_URL = "https://eoex4dd33w443lh.m.pipedream.net";
+// ------------------------------------------------------------------
 
 /**
  * Inicia o fluxo de autorização do Strava.
@@ -1595,18 +1596,20 @@ function handleStravaOAuthCallback() {
     // 4. Garante que o usuário logado é o mesmo que iniciou
     if (!authUser || authUser.uid !== linkingUid) {
         console.error("Erro de autenticação Strava: UID não bate.");
-        updateStravaButtonUI(false, "Erro de autenticação."); // CORRIGIDO: Agora tem verificação de nulidade
+        updateStravaButtonUI(false, "Erro de autenticação.");
         return;
     }
 
     console.log("Código Strava recebido. Trocando por token...");
-    updateStravaButtonUI(false, "Conectando...", true); // CORRIGIDO: Agora tem verificação de nulidade
+    updateStravaButtonUI(false, "Conectando...", true);
 
     // 5. Chama nosso Workflow 1 do Pipedream para trocar o código
-    fetch(`${PIPEDREAM_OAUTH_URL}?code=${authCode}`)
+    // CORREÇÃO: Usa a URL "hardcoded" para evitar cache do config.js
+    fetch(`${HARDCODED_PIPEDREAM_OAUTH_URL}?code=${authCode}`)
         .then(response => {
             if (!response.ok) {
-                throw new Error(`Falha na rede do Pipedream: ${response.statusText}`);
+                // CORREÇÃO: Resposta não-ok (como 404) também é HTML
+                throw new Error(`Falha na rede do Pipedream: ${response.status} ${response.statusText}`);
             }
             return response.json();
         })
@@ -1631,13 +1634,14 @@ function handleStravaOAuthCallback() {
         })
         .then(() => {
             console.log("Tokens Strava salvos no Firebase com sucesso!");
-            updateStravaButtonUI(true, "Conectado!"); // CORRIGIDO
+            updateStravaButtonUI(true, "Conectado!"); 
             alert("Strava conectado com sucesso!");
             closeProfileEditModal(); // Fecha o modal
         })
         .catch(err => {
             console.error("Erro completo no fluxo de callback do Strava:", err);
-            updateStravaButtonUI(false, `Erro: ${err.message}`); // CORRIGIDO
+            // CORREÇÃO: Mostra um erro mais amigável
+            updateStravaButtonUI(false, `Falha na conexão. (Erro: ${err.message})`);
         });
 }
 
@@ -1650,23 +1654,21 @@ function checkStravaConnection(uid) {
     dbRef.once('value')
         .then(snapshot => {
             if (snapshot.exists()) {
-                updateStravaButtonUI(true, "Conectado!"); // CORRIGIDO
+                updateStravaButtonUI(true, "Conectado!"); 
             } else {
-                updateStravaButtonUI(false); // CORRIGIDO
+                updateStravaButtonUI(false); 
             }
         })
         .catch(err => {
             console.error("Erro ao checar conexão Strava:", err);
-            updateStravaButtonUI(false, "Erro ao checar status."); // CORRIGIDO
+            updateStravaButtonUI(false, "Erro ao checar status.");
         });
 }
 
 /**
  * Atualiza a UI dos botões Strava no modal de perfil.
- * CORRIGIDO: Adicionadas verificações de nulidade para todos os elementos do DOM.
  */
 function updateStravaButtonUI(isConnected, message = "", isLoading = false) {
-    // VERIFICAÇÕES DE NULIDADE ADICIONADAS
     if (dom.stravaErrorStatus) dom.stravaErrorStatus.textContent = '';
     
     if (isLoading) {
@@ -1742,7 +1744,8 @@ async function getValidStravaToken(uid) {
 
     // --- Token Expirou! Precisamos dar refresh ---
     console.log("Token Strava expirado. Atualizando...");
-    const response = await fetch(`${PIPEDREAM_REFRESH_AND_FETCH_URL}?refresh_token=${tokenData.refresh_token}`);
+    // CORREÇÃO: Usa a URL "hardcoded" para evitar cache do config.js
+    const response = await fetch(`${HARDCODED_PIPEDREAM_REFRESH_URL}?refresh_token=${tokenData.refresh_token}`);
     
     if (!response.ok) {
         // Se o refresh falhar (ex: permissão revogada), limpa a conexão
@@ -1770,7 +1773,8 @@ async function getValidStravaToken(uid) {
  */
 async function fetchStravaRaces(accessToken) {
     console.log("Buscando atividades do Strava...");
-    const response = await fetch(`${PIPEDREAM_REFRESH_AND_FETCH_URL}?access_token=${accessToken}`);
+    // CORREÇÃO: Usa a URL "hardcoded" para evitar cache do config.js
+    const response = await fetch(`${HARDCODED_PIPEDREAM_REFRESH_URL}?access_token=${accessToken}`);
     
     if (!response.ok) {
         throw new Error("Falha ao buscar atividades no Pipedream.");
