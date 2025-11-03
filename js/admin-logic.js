@@ -1,5 +1,6 @@
 // =================================================================
 // ARQUIVO DE LÓGICA DO PAINEL DE ADMIN (V4 - Rede Social)
+// ATUALIZADO (V9.5) COM LÓGICA DE NORMALIZAÇÃO DE UPLOAD
 // =================================================================
 
 // Esta função é o ponto de entrada, chamada pelo main-logic.js se o usuário for admin
@@ -414,7 +415,7 @@ function initializeAdminPanel(adminUid, db) {
         const normalizedData = resultsData.map(atleta => {
             const cleanAthlete = {};
             
-            // 1. Mapeia todas as chaves originais (incluindo as desconhecidas como SEXO, Id., etc.)
+            // 1. Mapeia todas as chaves originais (incluindo as desconhecidas como SEXO, Id., Fx.Et., Cl.Fx.)
             for (const key in atleta) {
                 if (Object.hasOwnProperty.call(atleta, key)) {
                     // Removemos espaços em branco das chaves, se houver
@@ -433,6 +434,10 @@ function initializeAdminPanel(adminUid, db) {
             cleanAthlete.team = atleta.team || atleta.Equipe || atleta.assessoria || "Individual";
             cleanAthlete.time = atleta.time || atleta.TEMPO || atleta.liquid_time || "N/A";
             
+            // Adiciona as chaves de faixa etária do 'gestao.json' (para garantir compatibilidade)
+            if (atleta.age_group) cleanAthlete['Fx.Et.'] = atleta.age_group;
+            if (atleta.class_fx) cleanAthlete['Cl.Fx.'] = atleta.class_fx;
+
             return cleanAthlete;
         });
         // =================================================================
@@ -458,13 +463,14 @@ function initializeAdminPanel(adminUid, db) {
             
             athletes.forEach(athlete => {
                 try {
-                    const placement = parseInt(athlete.placement); // <--- Já está normalizado
+                    // Usa o placement normalizado
+                    const placement = parseInt(athlete.placement); 
                     // Formato solicitado: "Colocação de um total de Total"
                     athlete.placement_info = `${placement} de um total de ${totalParticipants}`;
                 } catch (e) {
                     athlete.placement_info = ""; // Caso o placement não seja um número
                 }
-                processedResults.push(athlete);
+                processedResults.push(athlete); // <--- O objeto 'athlete' aqui contém TODAS as chaves (Fx.Et., Cl.Fx., etc.)
             });
         }
         
@@ -478,12 +484,13 @@ function initializeAdminPanel(adminUid, db) {
         });
 
         // 3. Upload para o Firebase
+        // Salva o array 'processedResults' (que contém os objetos completos)
         db.ref('resultadosEtapas/' + raceId).set(processedResults)
             .then(() => updateStatus("Resultados da etapa atualizados com sucesso!", "success", 'results'))
             .catch(error => updateStatus(`Falha no envio: ${error.message}`, "error", 'results'));
     }
     // =================================================================
-    // FIM DA ALTERAÇÃO
+    // FIM DA ALTERAÇÃO (V9.5)
     // =================================================================
 
     function uploadFinalRanking(rankingData) {
