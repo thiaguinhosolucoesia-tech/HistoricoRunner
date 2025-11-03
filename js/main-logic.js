@@ -1,5 +1,7 @@
 // =================================================================
 // ARQUIVO DE LÓGICA PRINCIPAL (V9.2 - Estrutura BD Separada + Layout + Add Corrida Pública + Correções)
+// ATUALIZADO (V9.3) COM TAREFAS 2 (Excluir Mídia) e 3 (Ver Classificação)
+// CORREÇÃO (V9.4) DO ERRO 'sort' of undefined em openMediaUploadModal
 // =================================================================
 
 // --- Variáveis Globais do App ---
@@ -137,13 +139,6 @@ const dom = {
     profileEditPicturePreviewContainer: document.getElementById('profile-edit-picture-preview-container'),
     profileEditPicturePreview: document.getElementById('profile-edit-picture-preview'),
     profilePictureUploadStatus: document.getElementById('profile-picture-upload-status'),
-
-    // V10 (Strava)
-    btnConnectStrava: document.getElementById('btn-connect-strava'),
-    btnSyncStrava: document.getElementById('btn-sync-strava'),
-    stravaIntegrationStatus: document.getElementById('strava-integration-status'),
-    stravaConnectStatus: document.getElementById('strava-connect-status'),
-    stravaErrorStatus: document.getElementById('strava-error-status'),
 
     // V7/8 (Modal Likers)
     likersModal: document.getElementById('likers-modal'),
@@ -470,7 +465,7 @@ function createRaceCard(race) {
 
     let mediaButtonHTML = '';
     if (canEdit && cardStatus === 'completed') {
-        mediaButtonHTML = `<button class="btn-control btn-add-media" data-race-id="${race.id}" title="Adicionar Mídia">📸</button>`;
+        mediaButtonHTML = `<button class="btn-control btn-add-media" data-race-id="${race.id}" title="Adicionar/Excluir Mídia">📸</button>`;
     }
 
     // --- Seção Social (Likes + Preview Likers) - Placeholder ---
@@ -923,14 +918,17 @@ function showRaceResultsModal(raceId) {
 
             if (atletas.length > 0) {
                 contentHTML += `<h3 class="v2-modal-category-title">${category}</h3>`;
-                contentHTML += `<div style="overflow-x: auto;"><table class="v2-results-table"><thead><tr><th>#</th><th>Atleta</th><th>Equipe</th><th>Tempo</th></tr></thead><tbody>`;
+                // --- INÍCIO TAREFA 3 (Modificação) ---
+                contentHTML += `<div style="overflow-x: auto;"><table class="v2-results-table"><thead><tr><th>#</th><th>Atleta</th><th>Equipe</th><th>Tempo</th><th>Class. Cat.</th></tr></thead><tbody>`;
                 contentHTML += atletas.map(atleta => `
                     <tr>
                         <td class="font-medium">${atleta.placement}</td>
                         <td>${atleta.name || atleta.nome || 'N/A'}</td>
                         <td style="color: #b0b0b0;">${atleta.team || atleta.assessoria || 'Individual'}</td>
                         <td style="font-family: monospace;">${atleta.time || atleta.tempo || 'N/A'}</td>
+                        <td style="color: #c5cae9;">${atleta.placement_info || 'N/A'}</td>
                     </tr>`).join('');
+                // --- FIM TAREFA 3 (Modificação) ---
                 contentHTML += `</tbody></table></div>`;
             }
         });
@@ -988,26 +986,84 @@ function closeResultsModal() { dom.modalOverlay.classList.add('hidden'); }
 
 // ======================================================
 // SEÇÃO V4 + V8: LÓGICA DE UPLOAD DE MÍDIA (CLOUDINARY)
+// ATUALIZADA (V9.3) COM TAREFA 2 (Excluir Mídia)
 // ======================================================
+
 function openMediaUploadModal(raceId) {
     const race = db.races[raceId]; if (!race) { console.error("Corrida não encontrada:", raceId); return; }
-    dom.mediaForm.reset(); dom.mediaRaceIdInput.value = raceId; dom.mediaModalTitle.textContent = `Adicionar Mídia: ${race.raceName}`;
-    dom.mediaPreviewContainer.innerHTML = ''; dom.mediaPreviewContainer.style.display = 'none'; dom.mediaUploadStatus.textContent = '';
-    dom.mediaUploadStatus.className = 'upload-status'; dom.btnConfirmMediaUpload.disabled = true; dom.mediaModal.showModal();
+    dom.mediaForm.reset(); dom.mediaRaceIdInput.value = raceId; dom.mediaModalTitle.textContent = `Gerenciar Mídia: ${race.raceName}`;
+    dom.mediaPreviewContainer.innerHTML = ''; dom.mediaUploadStatus.textContent = '';
+    dom.mediaUploadStatus.className = 'upload-status'; dom.btnConfirmMediaUpload.disabled = true; // Desabilita upload até selecionar NOVOS arquivos
+
+    // --- INÍCIO TAREFA 2: Carregar mídias existentes ---
+    // --- CORREÇÃO V9.4: Adiciona verificação antes de Object.entries e .sort ---
+    const mediaItems = (race.media ? Object.entries(race.media).sort(([,a], [,b]) => a.uploadedAt - b.uploadedAt) : []);
+    
+    if (mediaItems.length > 0) {
+        dom.mediaPreviewContainer.style.display = 'grid'; // Mostra o grid
+        mediaItems.forEach(([mediaId, item]) => {
+            const previewItem = document.createElement('div');
+            previewItem.className = 'media-preview-item existing'; // Classe 'existing'
+            previewItem.innerHTML = `
+                <img src="${item.url}" alt="Mídia existente">
+                <button type="button" class="btn-delete-media" data-media-id="${mediaId}" data-media-url="${item.url}" title="Excluir esta mídia">×</button>
+            `;
+            dom.mediaPreviewContainer.appendChild(previewItem);
+        });
+
+        // Adiciona listeners aos novos botões de exclusão
+        dom.mediaPreviewContainer.querySelectorAll('.btn-delete-media').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const mediaId = e.currentTarget.dataset.mediaId;
+                const mediaUrl = e.currentTarget.dataset.mediaUrl;
+                // Chama a nova função de exclusão
+                deleteMediaItem(raceId, mediaId, mediaUrl, e.currentTarget.parentElement);
+            });
+        });
+    } else {
+         // Se não houver mídias existentes, garante que o container esteja oculto (até que novos arquivos sejam selecionados)
+         dom.mediaPreviewContainer.style.display = 'none';
+    }
+    // --- FIM TAREFA 2 ---
+
+    dom.mediaModal.showModal();
 }
+
 function closeMediaUploadModal() { dom.mediaModal.close(); }
+
 function handleMediaFileSelect(e) {
-    const files = e.target.files; dom.mediaPreviewContainer.innerHTML = ''; dom.mediaUploadStatus.textContent = ''; dom.mediaUploadStatus.className = 'upload-status'; let hasValidFiles = false;
+    const files = e.target.files;
+    
+    // --- INÍCIO TAREFA 2 (Modificação) ---
+    // Limpa apenas os previews de NOVOS arquivos (que não têm a classe .existing)
+    dom.mediaPreviewContainer.querySelectorAll('.media-preview-item:not(.existing)').forEach(el => el.remove());
+    // --- FIM TAREFA 2 (Modificação) ---
+
+    dom.mediaUploadStatus.textContent = ''; dom.mediaUploadStatus.className = 'upload-status'; let hasValidFiles = false;
+    
     if (files && files.length > 0) {
-        dom.mediaPreviewContainer.style.display = 'grid'; Array.from(files).forEach(file => {
+        dom.mediaPreviewContainer.style.display = 'grid'; // Garante que o grid esteja visível
+        Array.from(files).forEach(file => {
             if (file.type.startsWith('image/')) {
                 hasValidFiles = true; const reader = new FileReader(); reader.onload = function(event) {
-                    const previewItem = document.createElement('div'); previewItem.className = 'media-preview-item'; const img = document.createElement('img'); img.src = event.target.result; img.alt = `Preview ${file.name}`; previewItem.appendChild(img); dom.mediaPreviewContainer.appendChild(previewItem);
+                    const previewItem = document.createElement('div'); 
+                    previewItem.className = 'media-preview-item'; // SEM a classe 'existing'
+                    const img = document.createElement('img'); img.src = event.target.result; img.alt = `Preview ${file.name}`; previewItem.appendChild(img); dom.mediaPreviewContainer.appendChild(previewItem);
                 }; reader.readAsDataURL(file);
             } else { console.warn(`Arquivo ignorado: ${file.name}`); } });
-        if (!hasValidFiles) { updateMediaUploadStatus("Nenhuma imagem válida.", "error"); dom.mediaPreviewContainer.style.display = 'none'; }
-    } else { dom.mediaPreviewContainer.style.display = 'none'; } dom.btnConfirmMediaUpload.disabled = !hasValidFiles;
+        if (!hasValidFiles) { updateMediaUploadStatus("Nenhuma imagem válida.", "error"); }
+    } else {
+        // Se não houver novos arquivos, e também não houver arquivos existentes, esconde o grid
+        if (dom.mediaPreviewContainer.querySelectorAll('.media-preview-item.existing').length === 0) {
+            dom.mediaPreviewContainer.style.display = 'none';
+        }
+    } 
+    
+    // Habilita o botão de upload SOMENTE se houver NOVOS arquivos válidos
+    dom.btnConfirmMediaUpload.disabled = !hasValidFiles;
 }
+
 async function handleMediaUploadSubmit(e) {
     e.preventDefault(); const files = Array.from(dom.mediaFileInput.files).filter(f => f.type.startsWith('image/')); const raceId = dom.mediaRaceIdInput.value;
     if (files.length === 0 || !raceId) { updateMediaUploadStatus("Selecione imagens.", "error"); return; }
@@ -1028,6 +1084,49 @@ function saveMediaUrlToFirebase(raceId, url) {
         mediaRef.set(mediaData).then(() => { console.log("Mídia salva:", url); resolve(); }).catch(err => { console.error("Erro Firebase:", err); updateMediaUploadStatus(`Erro salvar mídia: ${err.message}`, "error"); reject(err); }); });
 }
 function updateMediaUploadStatus(message, type) { dom.mediaUploadStatus.textContent = message; dom.mediaUploadStatus.className = 'upload-status'; if (type) { dom.mediaUploadStatus.classList.add(type); } }
+
+// --- INÍCIO TAREFA 2: Nova Função ---
+function deleteMediaItem(raceId, mediaId, mediaUrl, element) {
+    // Verifica permissão
+    if (!authUser || authUser.uid !== currentViewingUid) {
+        alert("Erro: Você não tem permissão para excluir esta mídia.");
+        return;
+    }
+    
+    if (!confirm("Tem certeza que deseja excluir esta foto?\n\nEsta ação não pode ser desfeita.")) {
+        return;
+    }
+
+    // Define o caminho para o nó da mídia no Firebase
+    const mediaRef = firebase.database().ref(`/users/${currentViewingUid}/races/${raceId}/media/${mediaId}`);
+    
+    // Remove a referência do Firebase
+    mediaRef.remove()
+        .then(() => {
+            console.log("Mídia removida do Firebase:", mediaId);
+            // Remove o elemento da UI
+            if (element) {
+                element.remove();
+            }
+            // Atualiza status no modal
+            updateMediaUploadStatus("Mídia excluída.", "success");
+            // Se foi a última foto, esconde o container
+            if (dom.mediaPreviewContainer.querySelectorAll('.media-preview-item').length === 0) {
+                 dom.mediaPreviewContainer.style.display = 'none';
+            }
+        })
+        .catch(err => {
+            console.error("Erro ao excluir mídia do Firebase:", err);
+            alert("Erro ao excluir mídia: " + err.message);
+            updateMediaUploadStatus(`Erro ao excluir: ${err.message}`, "error");
+        });
+    
+    // NOTA: A exclusão do arquivo físico do Cloudinary não é implementada
+    // por razões de segurança (exigiria API secret no frontend).
+    // A remoção da referência do Firebase é suficiente para o app.
+}
+// --- FIM TAREFA 2 ---
+
 
 // ======================================================
 // SEÇÃO V5: LÓGICA DE EDIÇÃO DE PERFIL
@@ -1463,32 +1562,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (typeof CLOUDINARY_CLOUD_NAME === 'undefined' || typeof CLOUDINARY_UPLOAD_PRESET === 'undefined' || !CLOUDINARY_CLOUD_NAME || CLOUDINARY_CLOUD_NAME === "COLE_AQUI_SEU_CLOUD_NAME" || !CLOUDINARY_UPLOAD_PRESET || CLOUDINARY_UPLOAD_PRESET === "COLE_AQUI_SEU_UPLOAD_PRESET") { alert("ERRO CFG Cloudinary"); return; }
     CLOUDINARY_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`; CLOUDINARY_PRESET = CLOUDINARY_UPLOAD_PRESET;
 
-    // VERIFICAÇÃO CRÍTICA (Strava) - CORRIGIDO
-    // Não lemos mais as URLs do Pipedream daqui, então removemos essa verificação
-    if (typeof STRAVA_CLIENT_ID === 'undefined' || STRAVA_CLIENT_ID === "SEU_CLIENT_ID_AQUI") {
-       console.warn("Integração com Strava não configurada em config.js");
-       
-       if (dom.btnConnectStrava) { 
-           dom.btnConnectStrava.disabled = true;
-           dom.btnConnectStrava.innerHTML = "Strava (não configurado)";
-           dom.btnConnectStrava.title = "A integração com Strava não foi configurada corretamente no arquivo config.js";
-       }
-    }
-
     // --- LISTENERS ---
     dom.btnAddnew.addEventListener('click', () => openModal()); dom.btnCloseModal.addEventListener('click', (e) => { e.preventDefault(); closeModal(); }); dom.btnCancel.addEventListener('click', (e) => { e.preventDefault(); closeModal(); }); dom.form.addEventListener('submit', handleFormSubmit); dom.btnDelete.addEventListener('click', () => { const id = document.getElementById('race-id').value; if(id) deleteRace(id); });
     dom.btnLoginSubmit.addEventListener('click', handleSignIn); dom.btnSignUpSubmit.addEventListener('click', handleSignUp); dom.btnLogout.addEventListener('click', signOut); dom.btnBackToPublic.addEventListener('click', showLoggedOutView); dom.loginToggleLink.addEventListener('click', () => { const isSigningUp = dom.signupFields.classList.contains('hidden'); toggleLoginMode(isSigningUp); }); dom.btnBackToMyDashboard.addEventListener('click', () => { if (authUser) { dom.btnBackToMyDashboard.classList.add('hidden'); showUserDashboard(authUser); } });
     dom.btnCloseMediaModal.addEventListener('click', (e) => { e.preventDefault(); closeMediaUploadModal(); }); dom.btnCancelMediaUpload.addEventListener('click', (e) => { e.preventDefault(); closeMediaUploadModal(); }); dom.mediaFileInput.addEventListener('change', handleMediaFileSelect); dom.mediaForm.addEventListener('submit', handleMediaUploadSubmit);
     dom.btnEditProfile.addEventListener('click', openProfileEditModal); dom.btnCloseProfileEditModal.addEventListener('click', (e) => { e.preventDefault(); closeProfileEditModal(); }); dom.btnCancelProfileEdit.addEventListener('click', (e) => { e.preventDefault(); closeProfileEditModal(); }); dom.profileEditPictureInput.addEventListener('change', handleProfilePictureSelect); dom.profileEditForm.addEventListener('submit', handleProfileEditSubmit);
-    
-    // Listeners Strava (CORRIGIDO com verificação de nulidade)
-    if (dom.btnConnectStrava) {
-        dom.btnConnectStrava.addEventListener('click', handleStravaConnect);
-    }
-    if (dom.btnSyncStrava) {
-        dom.btnSyncStrava.addEventListener('click', handleStravaSync);
-    }
-    
     dom.modalSearchInput.addEventListener('keyup', filterResultsInModal); dom.btnCloseResultsModal.addEventListener('click', closeResultsModal); dom.modalOverlay.addEventListener('click', (e) => { if (e.target === dom.modalOverlay && !dom.modalOverlay.classList.contains('hidden')) { closeResultsModal(); } });
     dom.btnCloseLikersModal.addEventListener('click', (e) => { e.preventDefault(); closeLikersModal(); }); dom.btnCancelLikersModal.addEventListener('click', (e) => { e.preventDefault(); closeLikersModal(); });
     dom.profileCommentForm.addEventListener('submit', handleProfileCommentSubmit);
@@ -1510,13 +1588,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- ROTEADOR PRINCIPAL (Auth State Changed) ---
     auth.onAuthStateChanged((user) => {
-        
-        const previousUserUid = authUser?.uid; 
-        authUser = user;
-        
-        // Lógica Strava: Verifica se isso é um retorno OAuth
-        handleStravaOAuthCallback();
-        
+        const previousUserUid = authUser?.uid; authUser = user;
         if (previousUserUid && previousUserUid !== user?.uid) { // Limpa listeners do user anterior
             firebase.database().ref(`/users/${previousUserUid}/races`).off();
             // Limpa ambos os listeners V9.2
@@ -1525,9 +1597,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (currentProfileCommentsListener) { currentProfileCommentsListener.off(); currentProfileCommentsListener = null; }
         }
         if (user) { // --- USUÁRIO LOGADO ---
-            // Lógica Strava: Verifica se o usuário já tem tokens salvos
-            checkStravaConnection(user.uid);
-            
             firebase.database().ref('/admins/' + user.uid).once('value', (adminSnapshot) => {
                 isAdmin = adminSnapshot.exists() && adminSnapshot.val() === true;
                 firebase.database().ref('/users/' + user.uid).once('value', (userSnapshot) => {
@@ -1541,307 +1610,3 @@ document.addEventListener('DOMContentLoaded', () => {
         } else { /* --- USUÁRIO DESLOGADO --- */ showLoggedOutView(); }
     });
 }); // Fim DOMContentLoaded
-
-// ======================================================
-// SEÇÃO V10: LÓGICA DE INTEGRAÇÃO STRAVA
-// ======================================================
-
-// --- CORREÇÃO: URLs do Pipedream movidas do config.js para cá ---
-// Isso evita problemas de cache do GitHub Pages com o config.js
-const HARDCODED_PIPEDREAM_OAUTH_URL = "https://eolhvspjshqice9.m.pipedream.net";
-const HARDCODED_PIPEDREAM_REFRESH_URL = "https://eoex4dd33w443lh.m.pipedream.net";
-// ------------------------------------------------------------------
-
-/**
- * Inicia o fluxo de autorização do Strava.
- * Redireciona o usuário para a página de permissão do Strava.
- */
-function handleStravaConnect() {
-    if (!authUser) { alert("Faça login primeiro."); return; }
-    if (typeof STRAVA_CLIENT_ID === 'undefined') { alert("Erro: Strava Client ID não configurado."); return; }
-
-    const redirectUri = "https://thiaguinhosolucoesia-tech.github.io/corri_rp/index.html"; // Exatamente o que está no App Strava
-    const scope = "activity:read_all"; // Permissão para ler todas as atividades
-    
-    // Salva o UID do Firebase no localStorage para saber quem está conectando
-    // Isso é necessário porque seremos redirecionados para fora do app
-    localStorage.setItem('stravaAuthUID', authUser.uid); 
-    
-    // 3. Redireciona o usuário para o Strava
-    const authUrl = `https://www.strava.com/oauth/authorize?client_id=${STRAVA_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scope}&approval_prompt=force`;
-    window.location.href = authUrl;
-}
-
-/**
- * Chamada no carregamento da página. Verifica se a URL contém um código de
- * retorno do Strava. Se sim, inicia a troca do código por tokens.
- */
-function handleStravaOAuthCallback() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const authCode = urlParams.get('code');
-    const scope = urlParams.get('scope');
-    
-    // 1. Pega o UID do usuário que iniciou o processo
-    const linkingUid = localStorage.getItem('stravaAuthUID');
-
-    // 2. Se não tiver "code" ou "linkingUid", não é um callback.
-    if (!authCode || !linkingUid) {
-        return;
-    }
-
-    // 3. Limpa o localStorage e os parâmetros da URL para evitar reprocessamento
-    localStorage.removeItem('stravaAuthUID');
-    window.history.replaceState({}, document.title, window.location.pathname); // Limpa a URL
-
-    // 4. Garante que o usuário logado é o mesmo que iniciou
-    if (!authUser || authUser.uid !== linkingUid) {
-        console.error("Erro de autenticação Strava: UID não bate.");
-        updateStravaButtonUI(false, "Erro de autenticação.");
-        return;
-    }
-
-    console.log("Código Strava recebido. Trocando por token...");
-    updateStravaButtonUI(false, "Conectando...", true);
-
-    // 5. Chama nosso Workflow 1 do Pipedream para trocar o código
-    // CORREÇÃO: Usa a URL "hardcoded" para evitar cache do config.js
-    fetch(`${HARDCODED_PIPEDREAM_OAUTH_URL}?code=${authCode}`)
-        .then(response => {
-            if (!response.ok) {
-                // CORREÇÃO: Resposta não-ok (como 404) também é HTML
-                throw new Error(`Falha na rede do Pipedream: ${response.status} ${response.statusText}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.error || !data.access_token) {
-                throw new Error(`Erro do Pipedream/Strava: ${data.error || 'Token não recebido'}`);
-            }
-
-            console.log("Tokens recebidos:", data);
-            const { access_token, refresh_token, expires_at, athlete } = data;
-            
-            const tokenData = {
-                athlete_id: athlete.id,
-                access_token: access_token,
-                refresh_token: refresh_token,
-                expires_at: expires_at // Este é um timestamp em segundos
-            };
-
-            // 6. Salva os tokens de forma segura no Firebase
-            const dbRef = firebase.database().ref(`/userStravaTokens/${linkingUid}`);
-            return dbRef.set(tokenData);
-        })
-        .then(() => {
-            console.log("Tokens Strava salvos no Firebase com sucesso!");
-            updateStravaButtonUI(true, "Conectado!"); 
-            alert("Strava conectado com sucesso!");
-            closeProfileEditModal(); // Fecha o modal
-        })
-        .catch(err => {
-            console.error("Erro completo no fluxo de callback do Strava:", err);
-            // CORREÇÃO: Mostra um erro mais amigável
-            updateStravaButtonUI(false, `Falha na conexão. (Erro: ${err.message})`);
-        });
-}
-
-/**
- * Verifica no Firebase se o usuário já conectou o Strava.
- */
-function checkStravaConnection(uid) {
-    if (!uid) return;
-    const dbRef = firebase.database().ref(`/userStravaTokens/${uid}`);
-    dbRef.once('value')
-        .then(snapshot => {
-            if (snapshot.exists()) {
-                updateStravaButtonUI(true, "Conectado!"); 
-            } else {
-                updateStravaButtonUI(false); 
-            }
-        })
-        .catch(err => {
-            console.error("Erro ao checar conexão Strava:", err);
-            updateStravaButtonUI(false, "Erro ao checar status.");
-        });
-}
-
-/**
- * Atualiza a UI dos botões Strava no modal de perfil.
- */
-function updateStravaButtonUI(isConnected, message = "", isLoading = false) {
-    if (dom.stravaErrorStatus) dom.stravaErrorStatus.textContent = '';
-    
-    if (isLoading) {
-        if (dom.btnConnectStrava) dom.btnConnectStrava.classList.add('hidden');
-        if (dom.stravaIntegrationStatus) dom.stravaIntegrationStatus.classList.remove('hidden');
-        if (dom.btnSyncStrava) dom.btnSyncStrava.classList.add('hidden');
-        if (dom.stravaConnectStatus) dom.stravaConnectStatus.textContent = message || "Carregando...";
-    } else if (isConnected) {
-        if (dom.btnConnectStrava) dom.btnConnectStrava.classList.add('hidden');
-        if (dom.stravaIntegrationStatus) dom.stravaIntegrationStatus.classList.remove('hidden');
-        if (dom.btnSyncStrava) dom.btnSyncStrava.classList.remove('hidden');
-        if (dom.stravaConnectStatus) dom.stravaConnectStatus.textContent = message || "Conectado!";
-    } else { // Desconectado ou erro
-        if (dom.btnConnectStrava) dom.btnConnectStrava.classList.remove('hidden');
-        if (dom.stravaIntegrationStatus) dom.stravaIntegrationStatus.classList.add('hidden');
-        if (message && dom.stravaErrorStatus) {
-            dom.stravaErrorStatus.textContent = message;
-        }
-    }
-    if (dom.btnConnectStrava) dom.btnConnectStrava.disabled = isLoading;
-    if (dom.btnSyncStrava) dom.btnSyncStrava.disabled = isLoading;
-}
-
-
-/**
- * Ponto de entrada para o clique no botão "Sincronizar Corridas".
- */
-async function handleStravaSync() {
-    if (!authUser) { alert("Não autenticado."); return; }
-    updateStravaButtonUI(true, "Sincronizando...", true);
-
-    try {
-        const accessToken = await getValidStravaToken(authUser.uid);
-        if (!accessToken) {
-            throw new Error("Não foi possível obter um token de acesso válido.");
-        }
-        
-        const races = await fetchStravaRaces(accessToken);
-        if (races.length === 0) {
-            alert("Nenhuma nova atividade marcada como 'Prova' encontrada nas suas últimas 50 atividades do Strava.");
-            updateStravaButtonUI(true, "Conectado!");
-            return;
-        }
-
-        const savedCount = await saveRacesToFirebase(races);
-        alert(`${savedCount} novas provas do Strava foram adicionadas ao seu histórico!`);
-        
-        updateStravaButtonUI(true, "Sincronizado!");
-
-    } catch (err) {
-        console.error("Erro ao sincronizar Strava:", err);
-        updateStravaButtonUI(true, `Erro: ${err.message}`, false);
-    }
-}
-
-/**
- * Obtém um token de acesso válido, atualizando-o se estiver expirado.
- */
-async function getValidStravaToken(uid) {
-    const dbRef = firebase.database().ref(`/userStravaTokens/${uid}`);
-    const snapshot = await dbRef.once('value');
-    const tokenData = snapshot.val();
-
-    if (!tokenData) { throw new Error("Usuário não conectado ao Strava."); }
-
-    const bufferTimeInSeconds = 300; // 5 minutos de margem
-    const isExpired = (Date.now() / 1000) > (tokenData.expires_at - bufferTimeInSeconds);
-
-    if (!isExpired) {
-        console.log("Token Strava é válido.");
-        return tokenData.access_token;
-    }
-
-    // --- Token Expirou! Precisamos dar refresh ---
-    console.log("Token Strava expirado. Atualizando...");
-    // CORREÇÃO: Usa a URL "hardcoded" para evitar cache do config.js
-    const response = await fetch(`${HARDCODED_PIPEDREAM_REFRESH_URL}?refresh_token=${tokenData.refresh_token}`);
-    
-    if (!response.ok) {
-        // Se o refresh falhar (ex: permissão revogada), limpa a conexão
-        await dbRef.remove();
-        throw new Error("Falha ao atualizar token. Por favor, conecte-se ao Strava novamente.");
-    }
-
-    const newTokens = await response.json();
-    const newTokenData = {
-        athlete_id: tokenData.athlete_id, // Mantém o ID original
-        access_token: newTokens.access_token,
-        refresh_token: newTokens.refresh_token,
-        expires_at: newTokens.expires_at
-    };
-
-    // Salva os novos tokens no Firebase
-    await dbRef.set(newTokenData);
-    console.log("Token Strava atualizado e salvo.");
-    
-    return newTokenData.access_token;
-}
-
-/**
- * Busca as últimas 50 atividades do Strava e filtra as Provas (Race).
- */
-async function fetchStravaRaces(accessToken) {
-    console.log("Buscando atividades do Strava...");
-    // CORREÇÃO: Usa a URL "hardcoded" para evitar cache do config.js
-    const response = await fetch(`${HARDCODED_PIPEDREAM_REFRESH_URL}?access_token=${accessToken}`);
-    
-    if (!response.ok) {
-        throw new Error("Falha ao buscar atividades no Pipedream.");
-    }
-    
-    const races = await response.json();
-    console.log(`Encontradas ${races.length} provas.`);
-    return races;
-}
-
-/**
- * Salva as corridas (filtradas pelo Pipedream) no Firebase.
- */
-async function saveRacesToFirebase(races) {
-    if (!authUser || !db.profile.runner1Name) {
-        throw new Error("Perfil do usuário não carregado.");
-    }
-
-    let savedCount = 0;
-    const updates = {};
-    
-    for (const race of races) {
-        // Usamos o ID da atividade do Strava para evitar duplicatas
-        const stravaRaceId = `strava-${race.id}`;
-        
-        // Verifica se essa corrida já existe no nosso DB
-        if (db.races[stravaRaceId]) {
-            console.log(`Corrida ${race.name} já existe, pulando.`);
-            continue;
-        }
-
-        // Formata os dados para o formato do nosso banco
-        const raceDate = new Date(race.start_date);
-        const dateStr = raceDate.toISOString().split('T')[0];
-        const timeStr = secondsToTime(race.elapsed_time); // Usa tempo decorrido
-        const distanceKm = (race.distance / 1000).toFixed(2);
-
-        const raceData = {
-            date: dateStr,
-            year: raceDate.getFullYear().toString(),
-            raceName: race.name,
-            distance: parseFloat(distanceKm),
-            juntos: false, // Não podemos saber isso pelo Strava
-            notes: `Importado do Strava (ID: ${race.id})`,
-            [RUNNER_1_KEY]: {
-                status: 'completed',
-                time: normalizeTime(timeStr),
-                goalTime: null,
-                distance: parseFloat(distanceKm)
-            },
-            // Se o perfil tiver Corredor 2, marca como "não correu"
-            [RUNNER_2_KEY]: hasRunner2 ? { status: 'skipped', time: null, goalTime: null, distance: null } : null
-        };
-
-        // Prepara a atualização
-        updates[`/users/${authUser.uid}/races/${stravaRaceId}`] = raceData;
-        
-        // Também precisamos inicializar os nós de interação
-        updates[`/raceLikes/${stravaRaceId}`] = { ownerUid: authUser.uid, likeCount: 0, likes: {}, likers: {} };
-        updates[`/raceComments/${stravaRaceId}`] = { ownerUid: authUser.uid, comments: {} };
-        
-        savedCount++;
-    }
-
-    if (savedCount > 0) {
-        await firebase.database().ref().update(updates);
-    }
-
-    return savedCount;
-}

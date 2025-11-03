@@ -402,8 +402,38 @@ function initializeAdminPanel(adminUid, db) {
     }
     
     function processAndUploadResults(raceId, resultsData) {
-        updateStatus("Enviando resultados da etapa...", "loading", 'results');
-        db.ref('resultadosEtapas/' + raceId).set(resultsData)
+        updateStatus("Processando e enviando resultados da etapa...", "loading", 'results');
+
+        // 1. Agrupar por categoria para calcular o total
+        const groupedByCategory = {};
+        resultsData.forEach(athlete => {
+            const category = athlete.category;
+            if (!groupedByCategory[category]) {
+                groupedByCategory[category] = [];
+            }
+            groupedByCategory[category].push(athlete);
+        });
+
+        // 2. Adicionar a informação de colocação/total a cada registro
+        const processedResults = [];
+        for (const category in groupedByCategory) {
+            const athletes = groupedByCategory[category];
+            const totalParticipants = athletes.length;
+            
+            athletes.forEach(athlete => {
+                try {
+                    const placement = parseInt(athlete.placement);
+                    // Formato solicitado: "Colocação de um total de Total"
+                    athlete.placement_info = `${placement} de um total de ${totalParticipants}`;
+                } catch (e) {
+                    athlete.placement_info = ""; // Caso o placement não seja um número
+                }
+                processedResults.push(athlete);
+            });
+        }
+
+        // 3. Upload para o Firebase
+        db.ref('resultadosEtapas/' + raceId).set(processedResults)
             .then(() => updateStatus("Resultados da etapa atualizados com sucesso!", "success", 'results'))
             .catch(error => updateStatus(`Falha no envio: ${error.message}`, "error", 'results'));
     }
