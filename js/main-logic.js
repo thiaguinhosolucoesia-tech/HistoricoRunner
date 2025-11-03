@@ -3,6 +3,7 @@
 // ATUALIZADO (V9.3) COM TAREFAS 2 (Excluir Mídia) e 3 (Ver Classificação)
 // CORREÇÃO (V9.4) DO ERRO 'sort' of undefined em openMediaUploadModal
 // ATUALIZADO (V9.5) COM TAREFA 4 (Exibição de Faixa Etária nos Resultados)
+// CORREÇÃO (V9.5.1) DE ERRO DE DIGITAÇÃO NA DECLARAÇÃO 'dom' (getElementById_TODO_REVISAR)
 // =================================================================
 
 // --- Variáveis Globais do App ---\
@@ -79,6 +80,7 @@ const dom = {
     btnBackToMyDashboard: document.getElementById('btn-back-to-my-dashboard'),
     userDashboard: document.getElementById('user-dashboard'),
     publicListView: document.getElementById('public-list-view'),
+    userEmail: document.getElementById('user-email'), // V8: Movido para cá
     
     // V1 - Cabeçalho (V8: Movido para cá)
     header: document.querySelector('.header'),
@@ -132,7 +134,13 @@ const dom = {
     raceName: document.getElementById('race-name-modal'),
     raceDate: document.getElementById('race-date-modal'),
     raceDistance: document.getElementById('race-distance'),
-    raceNotes: document.getElementById_TODO_REVISAR('race-notes'), // V11 - Corrigido
+    // =================================================================
+    // INÍCIO DA CORREÇÃO V9.5.1
+    // =================================================================
+    raceNotes: document.getElementById('race-notes'), // Corrigido de getElementById_TODO_REVISAR
+    // =================================================================
+    // FIM DA CORREÇÃO V9.5.1
+    // =================================================================
     
     // V3.7 - Status da Corrida (Runners 1 e 2)
     raceStatusRunner1: document.getElementById('race-status-runner1'),
