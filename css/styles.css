@@ -770,7 +770,18 @@ html, body {
     .messenger-body {
         flex-direction: column;
     }
-    .chat-list-container {
+    .c.history-container {
+    /* CORREÇÃO V14: Garante que o container de histórico seja escondido corretamente */
+    overflow: hidden;
+    max-height: 1000px; /* Valor alto para transição */
+    transition: max-height 0.5s ease-out;
+}
+
+.history-container.collapsed {
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+}
         width: 100%;
         min-width: unset;
         height: 200px;
