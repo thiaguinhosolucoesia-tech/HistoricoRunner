@@ -501,7 +501,9 @@ function showPublicListView() {
 // =================================================================
 
 // --- Carregamento de Perfil de Usuário ---
-// (V9.6) - CORREÇÃO DO RACE CONDITION
+// =================================================================
+// INÍCIO DA ALTERAÇÃO (V9.6) - CORREÇÃO DO RACE CONDITION
+// =================================================================
 function loadUserProfile(uid) {
     // Se já estamos vendo esse perfil, não recarrega
     if (currentViewingUid === uid) {
@@ -567,7 +569,9 @@ function loadUserProfile(uid) {
         dom.appLoading.classList.add('hidden');
     });
 }
-// (FIM DA CORREÇÃO V9.6)
+// =================================================================
+// FIM DA ALTERAÇÃO (V9.6)
+// =================================================================
 
 // --- Carregamento da Lista Pública ---
 function loadPublicList() {
