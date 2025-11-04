@@ -1,6 +1,7 @@
 // =================================================================
 // ARQUIVO DE LÓGICA DO PAINEL DE ADMIN (V4 - Rede Social)
 // ATUALIZADO (V9.5) COM LÓGICA DE NORMALIZAÇÃO DE UPLOAD
+// (Baseado no seu original estável)
 // =================================================================
 
 // Esta função é o ponto de entrada, chamada pelo main-logic.js se o usuário for admin
@@ -403,52 +404,42 @@ function initializeAdminPanel(adminUid, db) {
     }
     
     // =================================================================
-    // INÍCIO DA ALTERAÇÃO: Função de Upload de Resultados (V9.5)
+    // INÍCIO DA ALTERAÇÃO (V9.5) - Normalização do Upload
     // =================================================================
     function processAndUploadResults(raceId, resultsData) {
         updateStatus("Processando e enviando resultados da etapa...", "loading", 'results');
 
-        // =================================================================
-        // ETAPA DE NORMALIZAÇÃO (A "Tradução" que resolve o problema)
-        // Isso garante que o resto da função receba os dados no formato esperado.
-        // =================================================================
+        // ETAPA DE NORMALIZAÇÃO (A "Tradução")
         const normalizedData = resultsData.map(atleta => {
             const cleanAthlete = {};
             
             // 1. Mapeia todas as chaves originais (incluindo as desconhecidas como SEXO, Id., Fx.Et., Cl.Fx.)
             for (const key in atleta) {
                 if (Object.hasOwnProperty.call(atleta, key)) {
-                    // Removemos espaços em branco das chaves, se houver
                     const cleanKey = key.trim();
                     cleanAthlete[cleanKey] = atleta[key];
                 }
             }
 
             // 2. Normaliza (Traduz) as chaves principais para o padrão do sistema (minúsculas)
-            // O sistema procura por 'category', 'placement', 'name', 'team', 'time'.
-            // Vamos garantir que elas existam, buscando as variações comuns (maiúsculas, etc.)
-            
             cleanAthlete.category = atleta.category || atleta.CATEGORIA || "Categoria Desconhecida";
             cleanAthlete.placement = atleta.placement || atleta.Col || atleta.class_fx || 9999;
             cleanAthlete.name = atleta.name || atleta.NOME || "Atleta Desconhecido";
             cleanAthlete.team = atleta.team || atleta.Equipe || atleta.assessoria || "Individual";
             cleanAthlete.time = atleta.time || atleta.TEMPO || atleta.liquid_time || "N/A";
             
-            // Adiciona as chaves de faixa etária do 'gestao.json' (para garantir compatibilidade)
+            // Garante compatibilidade com 'gestao.json'
             if (atleta.age_group) cleanAthlete['Fx.Et.'] = atleta.age_group;
             if (atleta.class_fx) cleanAthlete['Cl.Fx.'] = atleta.class_fx;
 
             return cleanAthlete;
         });
-        // =================================================================
         // FIM DA NORMALIZAÇÃO
-        // =================================================================
 
-
-        // 1. Agrupar por categoria para calcular o total (Agora usa 'normalizedData')
+        // 1. Agrupar por categoria para calcular o total (Usa 'normalizedData')
         const groupedByCategory = {};
-        normalizedData.forEach(athlete => { // <--- MUDANÇA AQUI (usa dados normalizados)
-            const category = athlete.category; // <--- Já está normalizado
+        normalizedData.forEach(athlete => { 
+            const category = athlete.category; // Já está normalizado
             if (!groupedByCategory[category]) {
                 groupedByCategory[category] = [];
             }
@@ -463,28 +454,23 @@ function initializeAdminPanel(adminUid, db) {
             
             athletes.forEach(athlete => {
                 try {
-                    // Usa o placement normalizado
-                    const placement = parseInt(athlete.placement); 
-                    // Formato solicitado: "Colocação de um total de Total"
+                    const placement = parseInt(athlete.placement); // Usa o normalizado
                     athlete.placement_info = `${placement} de um total de ${totalParticipants}`;
                 } catch (e) {
-                    athlete.placement_info = ""; // Caso o placement não seja um número
+                    athlete.placement_info = ""; 
                 }
-                processedResults.push(athlete); // <--- O objeto 'athlete' aqui contém TODAS as chaves (Fx.Et., Cl.Fx., etc.)
+                processedResults.push(athlete); // Salva o objeto completo normalizado
             });
         }
         
-        // (MELHORIA SÊNIOR): Ordena os resultados finais pela categoria e depois pela colocação
-        // Isso garante que os dados sejam salvos no Firebase de forma organizada.
+        // Ordena os resultados finais
         processedResults.sort((a, b) => {
              if (a.category < b.category) return -1;
              if (a.category > b.category) return 1;
-             // Se a categoria for a mesma, ordena pelo placement (numérico)
              return parseInt(a.placement) - parseInt(b.placement);
         });
 
         // 3. Upload para o Firebase
-        // Salva o array 'processedResults' (que contém os objetos completos)
         db.ref('resultadosEtapas/' + raceId).set(processedResults)
             .then(() => updateStatus("Resultados da etapa atualizados com sucesso!", "success", 'results'))
             .catch(error => updateStatus(`Falha no envio: ${error.message}`, "error", 'results'));
