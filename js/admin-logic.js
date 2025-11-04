@@ -265,8 +265,8 @@ function initializeAdminPanel(adminUid, db) {
     // ======================================================
 
     function loadAndDisplayRaces() {
-        const copaRef = db.ref('/copaAlcer');
-        const geralRef = db.ref('/geral');
+        const copaRef = db.ref('/corridas/copaAlcer');
+        const geralRef = db.ref('/corridas/geral');
 
         copaRef.on('value', (snapshot) => {
             const races = snapshot.val();
@@ -344,7 +344,7 @@ function initializeAdminPanel(adminUid, db) {
             link: raceLink || ""
         };
 
-        db.ref(`/${calendar}/${raceData.id}`).set(raceData)
+        db.ref(`/corridas/${calendar}/${raceData.id}`).set(raceData)
             .then(() => {
                 alert(`Corrida "${raceName}" salva com sucesso!`);
                 clearForm();
@@ -356,7 +356,7 @@ function initializeAdminPanel(adminUid, db) {
     }
 
     function editRace(raceId, calendar) {
-        db.ref(`/${calendar}/${raceId}`).once('value', (snapshot) => {
+        db.ref(`/corridas/${calendar}/${raceId}`).once('value', (snapshot) => {
             const race = snapshot.val();
             if (!race) {
                 alert("Corrida não encontrada.");
@@ -378,7 +378,7 @@ function initializeAdminPanel(adminUid, db) {
     function deleteRace(raceId, calendar, raceName) {
         if (!confirm(`Tem certeza que deseja EXCLUIR a corrida "${raceName}"?`)) return;
 
-        db.ref(`/${calendar}/${raceId}`).remove()
+        db.ref(`/corridas/${calendar}/${raceId}`).remove()
             .then(() => {
                 alert(`Corrida "${raceName}" excluída com sucesso!`);
             })
