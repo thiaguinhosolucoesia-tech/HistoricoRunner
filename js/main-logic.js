@@ -30,7 +30,7 @@ const STATUS_PLANNED = 'planned';
 const STATUS_SKIPPED = 'skipped';
 
 // --- Ponto de Entrada Principal ---
-document.addEventListener('DOMContentLoaded', ()V => {
+document.addEventListener('DOMContentLoaded', () => {
     cacheDomElements();
     setupEventListeners();
     initializeFirebase();
