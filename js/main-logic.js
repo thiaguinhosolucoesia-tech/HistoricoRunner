@@ -1,8 +1,9 @@
 // =================================================================
-// ARQUIVO DE LÓGICA PRINCIPAL (V9.4 - Original)
-// ATUALIZADO (V9.5) COM EXIBIÇÃO DE FAIXA ETÁRIA
-// CORREÇÃO (V9.5.3) DOS BUGS DE INICIALIZAÇÃO (getElementById, Race Condition, appSTATE)
-// (Baseado no seu original estável)
+// ARQUIVO DE LÓGICA PRINCIPAL (V9.2 - Estrutura BD Separada + Layout + Add Corrida Pública + Correções)
+// ATUALIZADO (V9.3) COM TAREFAS 2 (Excluir Mídia) e 3 (Ver Classificação)
+// CORREÇÃO (V9.4) DO ERRO 'sort' of undefined em openMediaUploadModal
+// VERSÃO ESTÁVEL (V9.6) - CORRIGE "RACE CONDITION" E ADICIONA EXIBIÇÃO DE FX.ET.
+// (Baseado no original estável do corri.zip)
 // =================================================================
 
 // --- Variáveis Globais do App ---\
@@ -133,7 +134,7 @@ const dom = {
     raceName: document.getElementById('race-name-modal'),
     raceDate: document.getElementById('race-date-modal'),
     raceDistance: document.getElementById('race-distance'),
-    raceNotes: document.getElementById('race-notes'), // Linha original (corrigida)
+    raceNotes: document.getElementById('race-notes'), // Linha original
     
     // V3.7 - Status da Corrida (Runners 1 e 2)
     raceStatusRunner1: document.getElementById('race-status-runner1'),
@@ -500,7 +501,7 @@ function showPublicListView() {
 // =================================================================
 
 // --- Carregamento de Perfil de Usuário ---
-// (V9.5.2) - CORREÇÃO DO RACE CONDITION
+// (V9.6) - CORREÇÃO DO RACE CONDITION
 function loadUserProfile(uid) {
     // Se já estamos vendo esse perfil, não recarrega
     if (currentViewingUid === uid) {
@@ -566,7 +567,7 @@ function loadUserProfile(uid) {
         dom.appLoading.classList.add('hidden');
     });
 }
-// (FIM DA CORREÇÃO V9.5.2)
+// (FIM DA CORREÇÃO V9.6)
 
 // --- Carregamento da Lista Pública ---
 function loadPublicList() {
@@ -613,13 +614,7 @@ function loadPublicData() {
             const activeFilter = dom.publicContentFilters.querySelector('button.active');
             if (activeFilter) {
                 if (activeFilter.id === 'btn-show-copa-alcer') renderPublicCalendar(appState.allCorridas.copaAlcer, 'Copa Alcer');
-                // =================================================================
-                // INÍCIO DA CORREÇÃO (V9.5.3) - Erro de digitação appSTATE
-                // =================================================================
-                if (activeFilter.id === 'btn-show-geral') renderPublicCalendar(appState.allCorridas.geral, 'Calendário Geral'); // Corrigido de appSTATE
-                // =================================================================
-                // FIM DA CORREÇÃO (V9.5.3)
-                // =================================================================
+                if (activeFilter.id === 'btn-show-geral') renderPublicCalendar(appState.allCorridas.geral, 'Calendário Geral');
             }
         }
     });
@@ -1701,7 +1696,7 @@ function cleanupListeners() {
 // =================================================================
 
 // =================================================================
-// INÍCIO DA ALTERAÇÃO (V9.5) - Exibição de Faixa Etária
+// INÍCIO DA ALTERAÇÃO (V9.6) - Exibição de Faixa Etária
 // =================================================================
 function showRaceResultsModal(raceId, raceName) {
     dom.raceResultsTitle.textContent = raceName;
@@ -1775,7 +1770,7 @@ function showRaceResultsModal(raceId, raceName) {
             const tempo = atleta.time || atleta.tempo || atleta.TEMPO || 'N/A';
             const placementInfo = atleta.placement_info || placement; // O 'placement_info' (ex: 54 de 245) é o principal
 
-            // --- V9.5: Lógica para exibir Faixa Etária (A SUA SOLICITAÇÃO) ---
+            // --- V9.6: Lógica para exibir Faixa Etária (A SUA SOLICITAÇÃO) ---
             // Procura pelas chaves de ambos os formatos de JSON
             const fxEtaria = atleta['Fx.Et.'] || atleta.age_group || '';
             const clFx = atleta['Cl.Fx.'] || atleta.class_fx || '';
@@ -1806,7 +1801,7 @@ function showRaceResultsModal(raceId, raceName) {
     dom.raceResultsContent.innerHTML = fullHtml;
 }
 // =================================================================
-// FIM DA ALTERAÇÃO (V9.5)
+// FIM DA ALTERAÇÃO (V9.6)
 // =================================================================
 
 
@@ -1902,7 +1897,7 @@ function handleRaceLike(raceId, ownerUid) {
     toggleLike({ 
         raceId: raceId, 
         ownerUid: ownerUid,
-        // (V9.5.2) A CORREÇÃO DO RACE CONDITION GARANTE QUE 'db.profile' EXISTA AQUI
+        // (V9.6) A CORREÇÃO DO RACE CONDITION GARANTE QUE 'db.profile' EXISTA AQUI
         likerName: db.profile.runner1Name || authUser.email, 
         likerPic: db.profile.profilePictureUrl || null
     })
@@ -2026,7 +2021,7 @@ function handleRaceCommentSubmit(e) {
         raceId: raceId,
         ownerUid: ownerUid,
         text: text,
-        // (V9.5.2) A CORREÇÃO DO RACE CONDITION GARANTE QUE 'db.profile' EXISTA AQUI
+        // (V9.6) A CORREÇÃO DO RACE CONDITION GARANTE QUE 'db.profile' EXISTA AQUI
         commenterName: db.profile.runner1Name || authUser.email,
         commenterPic: db.profile.profilePictureUrl || null
     })
@@ -2092,7 +2087,7 @@ function handleProfileCommentSubmit(e) {
     addProfileComment({
         profileUid: profileUid,
         text: text,
-        // (V9.5.2) A CORREÇÃO DO RACE CONDITION GARANTE QUE 'db.profile' EXISTA AQUI
+        // (V9.6) A CORREÇÃO DO RACE CONDITION GARANTE QUE 'db.profile' EXISTA AQUI
         commenterName: db.profile.runner1Name || authUser.email,
         commenterPic: db.profile.profilePictureUrl || null
     })
