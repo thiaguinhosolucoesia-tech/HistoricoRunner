@@ -23,3 +23,5 @@ const CLOUDINARY_CLOUD_NAME = "dpaayfwlj"; // Mantenha seu Cloud Name real aqui
 // 3. COLE AQUI SEU UPLOAD PRESET DO CLOUDINARY
 // (Settings -> Upload -> Upload Presets -> Nome do seu preset "Unsigned")
 const CLOUDINARY_UPLOAD_PRESET = "rede_corridas_unsigned"; // Mantenha seu Preset real aqui
+
+// (A CHAVE '}' EXTRA QUE ESTAVA AQUI FOI REMOVIDA)
