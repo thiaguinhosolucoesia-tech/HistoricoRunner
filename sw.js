@@ -1,26 +1,25 @@
 // ==========================================
 // ARQUIVO: sw.js (SERVICE WORKER)
-// VERSÃO: V15 (CORREÇÃO DA ESTRATÉGIA)
-// OBJETIVO: Mudar para "Network First" e limpar o cache V14 quebrado.
+// VERSÃO: V16 (CORREÇÃO DE ARQUIVO FALTANDO)
+// OBJETIVO: Limpar o cache quebrado (V15) e carregar a lista correta de arquivos.
 // ==========================================
 
 // Define o nome do cache
 // =========================================
-// INÍCIO DA ALTERAÇÃO (V15) - "Bater" o cache
+// INÍCIO DA ALTERAÇÃO (V16) - "Bater" o cache
 // =========================================
-const CACHE_NOME = 'curriculo-corredores-v15'; // <-- MUDANÇA CRÍTICA
+const CACHE_NOME = 'curriculo-corredores-v16'; // <-- MUDANÇA CRÍTICA
 // =========================================
 // FIM DA ALTERAÇÃO
 // =========================================
 
 // Lista de arquivos exatos do App Shell
-// (Assegurando que styles-v2.css e manifest.json estejam incluídos)
+// (REMOVIDO 'css/styles-v2.css' QUE NÃO EXISTE)
 const listaUrlsParaCache = [
   '/',
   'index.html',
-  'manifest.json', // Adicionado para PWA
-  'css/styles.css',
-  'css/styles-v2.css', // Adicionado (estava faltando no seu)
+  'manifest.json',
+  'css/styles.css', // Arquivo correto
   'js/config.js',
   'js/main-logic.js',
   'js/admin-logic.js',
@@ -68,9 +67,7 @@ self.addEventListener('activate', (event) => {
 
 
 // Evento 'fetch': Intercepta requisições
-// =================================================================
-// INÍCIO DA ALTERAÇÃO (V15) - MUDANÇA DA ESTRATÉGIA DE CACHE
-// =================================================================
+// Estratégia "Network First"
 self.addEventListener('fetch', (event) => {
   
   // 1. Ignora requisições POST ou não-GET
@@ -79,23 +76,19 @@ self.addEventListener('fetch', (event) => {
   }
     
   // 2. Para requisições de terceiros (Firebase, Cloudinary), usa Network only
-  // (Elas não devem ser cacheadas pelo SW)
   if (!event.request.url.startsWith(self.location.origin)) {
     event.respondWith(fetch(event.request));
     return;
   }
   
   // 3. Para o App Shell (Nossos arquivos): Estratégia "Network First"
-  // Tenta buscar da rede primeiro. Se falhar (offline), usa o cache.
-  // ISSO GARANTE QUE O CÓDIGO CORRIGIDO (V10) SEJA CARREGADO.
+  // Tenta buscar da rede primeiro.
   event.respondWith(
     fetch(event.request)
       .then((networkResponse) => {
         // Se a resposta da rede for boa, salva no cache
         return caches.open(CACHE_NOME).then((cache) => {
-          // Clona a resposta, pois ela só pode ser consumida uma vez
           cache.put(event.request, networkResponse.clone());
-          // Retorna a resposta da rede
           return networkResponse;
         });
       })
@@ -106,6 +99,3 @@ self.addEventListener('fetch', (event) => {
       })
   );
 });
-// =================================================================
-// FIM DA ALTERAÇÃO (V15)
-// =================================================================
