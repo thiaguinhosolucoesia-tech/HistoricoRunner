@@ -2220,21 +2220,10 @@ function setupEventListeners() {
     dom.filterStatus.addEventListener('change', () => loadUserProfile(appState.currentViewingUid));
     dom.filterRunner.addEventListener('change', () => loadUserProfile(appState.currentViewingUid));
     
-    // =================================================================
-    // INÍCIO DA CORREÇÃO 2 (Erro de "null.addEventListener")
-    // Adicionamos "if (dom.toggle...)" para evitar o crash
-    // =================================================================
     // --- Recolher/Expandir (V13) ---
-    if (dom.toggleHistoryBtn && dom.toggleHistoryContent) {
-        dom.toggleHistoryBtn.addEventListener('click', () => toggleCollapsibleSection(dom.toggleHistoryContent, dom.toggleHistoryBtn));
-    }
-    if (dom.toggleCommentsBtn && dom.toggleCommentsContent) {
-        dom.toggleCommentsBtn.addEventListener('click', () => toggleCollapsibleSection(dom.toggleCommentsContent, dom.toggleCommentsBtn));
-    }
+    dom.toggleHistoryBtn.addEventListener('click', () => toggleCollapsibleSection(dom.toggleHistoryContent, dom.toggleHistoryBtn));
+    dom.toggleCommentsBtn.addEventListener('click', () => toggleCollapsibleSection(dom.toggleCommentsContent, dom.toggleCommentsBtn));
     loadCollapsibleState(); // Carrega o estado salvo
-    // =================================================================
-    // FIM DA CORREÇÃO 2
-    // =================================================================
 
     // --- CRUD Modal Corrida ---
     dom.btnAddRace.addEventListener('click', () => openRaceModal());
@@ -2509,3 +2498,348 @@ function handleProfilePictureUpload(event) {
         dom.profilePictureProgress.classList.add('hidden');
     });
 }
+
+}
+
+{
+type: uploaded file
+fileName: estrutura.zip/HistoricoRunner-main/css/styles-v2.css
+fullContent:
+/* ================================================= */
+/* ESTILIZAÇÃO V2 (Layout Público V9.1)              */
+/* ================================================= */
+
+/* --- Títulos --- */
+.section-title {
+    font-size: 2.25rem; /* 36px */
+    font-weight: 800; /* Extra-bold */
+    text-align: center;
+    margin-bottom: 3rem; /* 48px */
+    color: white;
+}
+
+.text-blue-highlight {
+    color: #60a5fa; /* Azul claro */
+}
+
+/* --- Grid do Calendário --- */
+.calendar-grid {
+    display: grid;
+    /* Cria colunas responsivas: 
+       - Tenta encaixar o máximo de colunas com 350px
+       - Se não couber, cria uma coluna única de 1fr (100%)
+    */
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 20px;
+    margin-bottom: 40px; /* Espaço após cada grid */
+}
+
+/* --- Card de Corrida (Layout V2) --- */
+.v2-race-card {
+    background-color: #2a2a3a; /* #27272a no Tailwind (zinc-800) */
+    border-radius: 0.75rem; /* 12px */
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,.1),0 2px 4px -2px rgba(0,0,0,.1);
+    transition: all 0.2s ease-out;
+    border: 1px solid #444; /* #52525b (zinc-600) */
+    display: flex;
+    overflow: hidden; /* Garante que os cantos arredondados funcionem */
+}
+
+.v2-race-card:hover {
+    transform: translateY(-5px);
+    border-color: #60a5fa; /* Azul ao passar o mouse */
+}
+
+/* --- Data (Lado Esquerdo) --- */
+.v2-race-date {
+    background-color: #60a5fa; /* Azul */
+    color: white;
+    padding: 1rem; /* 16px */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-width: 90px; /* Largura mínima */
+    text-align: center;
+}
+
+.v2-race-date-day {
+    font-size: 2rem; /* 32px */
+    font-weight: 700; /* Bold */
+    line-height: 1; /* Remove altura extra da linha */
+}
+
+.v2-race-date-month {
+    font-size: 1rem; /* 16px */
+    font-weight: 600; /* Semi-bold */
+}
+
+/* --- Infos (Lado Direito) --- */
+.v2-race-info {
+    padding: 1rem; /* 16px */
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between; /* Empurra botões para baixo */
+    flex-grow: 1; /* Ocupa o espaço restante */
+}
+
+.v2-race-info h3 {
+    font-weight: bold;
+    font-size: 1.2em;
+    color: white;
+}
+
+.v2-race-info p {
+    font-size: 0.9em;
+    color: #b0b0b0; /* #a1a1aa (zinc-400) */
+}
+
+.v2-race-buttons {
+    display: flex;
+    gap: 0.5rem; /* 8px */
+    margin-top: 1rem; /* 16px */
+}
+
+/* --- Botões de Ação --- */
+.v2-results-button,
+.v2-race-button-disabled,
+.v2-inscricoes-button,
+.v2-add-personal-button { /* V9.1 */
+    text-align: center;
+    font-weight: 600;
+    padding: 0.5rem 1rem; /* 8px 16px */
+    border-radius: 0.375rem; /* 6px */
+    font-size: 0.875rem; /* 14px */
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    cursor: pointer;
+    text-decoration: none; /* Para o <a> */
+}
+
+/* Botão Resultados */
+.v2-results-button {
+    background-color: #ca8a04; /* Amarelo-escuro */
+    color: white;
+}
+.v2-results-button:hover {
+    background-color: #a16207;
+}
+
+/* Botão Inscrições */
+.v2-inscricoes-button {
+    background-color: #16a34a; /* Verde */
+    color: white;
+}
+.v2-inscricoes-button:hover {
+    background-color: #15803d;
+}
+
+/* Botão Adicionar ao Histórico (V9.1) */
+.v2-add-personal-button {
+    background-color: #007bff; /* Azul (diferente do verde) */
+    color: white;
+}
+.v2-add-personal-button:hover {
+    background-color: #0056b3;
+}
+
+
+/* Botão Desabilitado */
+.v2-race-button-disabled {
+    background-color: #4b5563; /* Cinza-escuro */
+    color: #9ca3af; /* Cinza-claro */
+    cursor: not-allowed;
+}
+
+
+/* ================================================= */
+/* MODAL DE RESULTADOS (V2)                          */
+/* ================================================= */
+
+/* Overlay */
+.v2-modal-overlay {
+    position: fixed;
+    inset: 0; /* (top, right, bottom, left = 0) */
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(5px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    z-index: 50;
+    transition: opacity 0.3s ease;
+}
+
+.v2-modal-overlay.hidden {
+    display: none;
+    opacity: 0;
+}
+
+/* Conteúdo do Modal */
+.v2-modal-content {
+    background: #2a2a3a;
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    width: 90%;
+    max-width: 900px;
+    max-height: 90vh; /* Limita a altura */
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #555;
+    position: relative;
+}
+
+/* Botão de Fechar */
+.v2-modal-close-btn {
+    position: absolute;
+    top: 15px;
+    right: 20px;
+    background: none;
+    border: none;
+    color: #b0b0b0;
+    font-size: 2rem;
+    cursor: pointer;
+    z-index: 10;
+}
+.v2-modal-close-btn:hover { color: white; }
+
+/* Header do Modal */
+.v2-modal-header {
+    padding: 20px 30px;
+    background: #1f2027;
+    border-bottom: 1px solid #444;
+}
+.v2-modal-title {
+    font-size: 1.8em;
+    font-weight: 700;
+    color: #c5cae9;
+}
+
+/* Corpo do Modal */
+.v2-modal-body {
+    padding: 20px 30px;
+    overflow-y: auto; /* Permite scroll se o conteúdo for maior */
+    flex-grow: 1; /* Ocupa o espaço disponível */
+}
+
+/* Tabela de Resultados (V2) */
+.v2-modal-category-title {
+    font-size: 1.5rem; /* 24px */
+    font-weight: 700; /* Bold */
+    color: #60a5fa; /* Azul claro */
+    margin-top: 1.5rem; /* 24px */
+    margin-bottom: 1rem; /* 16px */
+    padding-bottom: 0.5rem; /* 8px */
+    border-bottom: 1px solid #444;
+}
+
+.v2-results-table {
+    width: 100%;
+    text-align: left;
+    font-size: 0.9em;
+}
+
+.v2-results-table thead {
+    background-color: #333345;
+    color: #b0b0b0;
+    font-size: 0.8em;
+    text-transform: uppercase;
+}
+
+.v2-results-table th,
+.v2-results-table td {
+    padding: 10px 15px;
+}
+
+.v2-results-table tbody tr {
+    border-bottom: 1px solid #444;
+}
+
+.v2-results-table tbody tr:hover {
+    background-color: #333345;
+}
+
+/* Responsividade do Modal */
+@media (max-width: 768px) {
+    .v2-modal-content {
+        width: 100%;
+        max-width: 100%;
+        height: 100vh;
+        max-height: 100vh;
+        border-radius: 0;
+    }
+}
+
+}
+
+{
+type: uploaded file
+fileName: estrutura.zip/HistoricoRunner-main/manifest.json
+fullContent:
+{
+  "name": "Currículo de Corredores",
+  "short_name": "Corri 🏃🏻‍♂️🏃🏽‍♀️",
+  "description": "Sua rede social para históricos e resultados de corridas de rua.",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#1f2027",
+  "theme_color": "#007bff",
+  "orientation": "portrait-primary",
+  "scope": ".",
+  "icons": [
+    {
+      "src": "icons/icon-72x72.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-96x96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-128x128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-144x144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-152x152.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-384x384.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
+
+}
+mas vc nao entende? a estrutura corri-rp nao usa js/app.. é uma versao antiga.. essa que vc quebrou (estrutura.zip) é a mais atual.. so que esta quebrada pq vc começou a fazer alterações e nao sabe mais voltar ao que era antes..  vc vai continuar se repetindo?
