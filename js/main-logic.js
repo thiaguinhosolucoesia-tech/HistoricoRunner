@@ -4,6 +4,7 @@
 // CORREÇÃO (V9.4) DO ERRO 'sort' of undefined em openMediaUploadModal
 // ATUALIZADO (V9.5) COM TAREFA 4 (Exibição de Faixa Etária nos Resultados)
 // CORREÇÃO (V9.5.1) DE ERRO DE DIGITAÇÃO NA DECLARAÇÃO 'dom' (getElementById_TODO_REVISAR)
+// CORREÇÃO (V9.5.2) DE "RACE CONDITION" EM loadUserProfile (db.profile undefined)
 // =================================================================
 
 // --- Variáveis Globais do App ---\
@@ -134,13 +135,8 @@ const dom = {
     raceName: document.getElementById('race-name-modal'),
     raceDate: document.getElementById('race-date-modal'),
     raceDistance: document.getElementById('race-distance'),
-    // =================================================================
-    // INÍCIO DA CORREÇÃO V9.5.1
-    // =================================================================
-    raceNotes: document.getElementById('race-notes'), // Corrigido de getElementById_TODO_REVISAR
-    // =================================================================
-    // FIM DA CORREÇÃO V9.5.1
-    // =================================================================
+    // (V9.5.1)
+    raceNotes: document.getElementById('race-notes'), // Corrigido
     
     // V3.7 - Status da Corrida (Runners 1 e 2)
     raceStatusRunner1: document.getElementById('race-status-runner1'),
@@ -506,7 +502,9 @@ function showPublicListView() {
 // SEÇÃO 2: LÓGICA DE DADOS (CARREGAMENTO E RENDERIZAÇÃO)
 // =================================================================
 
-// --- Carregamento de Perfil de Usuário ---
+// =================================================================
+// INÍCIO DA ALTERAÇÃO (V9.5.2) - CORREÇÃO DO RACE CONDITION
+// =================================================================
 function loadUserProfile(uid) {
     // Se já estamos vendo esse perfil, não recarrega
     if (currentViewingUid === uid) {
@@ -540,37 +538,43 @@ function loadUserProfile(uid) {
         dom.btnBackToMyDashboard.classList.add('hidden');
     }
 
-    // Carrega os dados do perfil (profile)
+    // --- CORREÇÃO V9.5.2 ---
+    // 1. Carrega os dados do perfil (profile) PRIMEIRO
     const profileRef = database.ref(`/users/${uid}/profile`);
     profileRef.on('value', (snapshot) => {
         if (!snapshot.exists()) {
             console.error(`Perfil ${uid} não encontrado em /users/`);
-            // Se o usuário foi excluído enquanto logado, desloga
             if (authUser && authUser.uid === uid) signOut(); 
-            else showPublicListView(); // Se era visitante, volta pra lista
+            else showPublicListView(); 
             return;
         }
         db.profile = snapshot.val() || {};
-        renderProfile(db.profile);
+        renderProfile(db.profile); // Renderiza o perfil
         dom.appLoading.classList.add('hidden');
+        
+        // 2. SOMENTE APÓS o perfil ser carregado (db.profile estar definido),
+        // carregamos os dados das corridas (races)
+        const racesRef = database.ref(`/users/${uid}/races`);
+        racesRef.on('value', (snapshot) => {
+            db.races = snapshot.val() || {};
+            renderHistory(db.races); // Renderiza o histórico
+            renderStats(db.races); // Renderiza as estatísticas
+        }, (error) => {
+            console.error("Erro ao carregar corridas:", error);
+        });
+
+        // 3. Carrega os comentários do perfil (mural)
+        // (Isso pode rodar em paralelo, não depende de db.profile)
+        loadProfileComments(uid);
+
     }, (error) => {
         console.error("Erro ao carregar perfil:", error);
         dom.appLoading.classList.add('hidden');
     });
-    
-    // Carrega os dados das corridas (races)
-    const racesRef = database.ref(`/users/${uid}/races`);
-    racesRef.on('value', (snapshot) => {
-        db.races = snapshot.val() || {};
-        renderHistory(db.races);
-        renderStats(db.races);
-    }, (error) => {
-        console.error("Erro ao carregar corridas:", error);
-    });
-
-    // V9.2 - Carrega os comentários do perfil (mural)
-    loadProfileComments(uid);
 }
+// =================================================================
+// FIM DA ALTERAÇÃO (V9.5.2)
+// =================================================================
 
 // --- Carregamento da Lista Pública ---
 function loadPublicList() {
@@ -617,7 +621,7 @@ function loadPublicData() {
             const activeFilter = dom.publicContentFilters.querySelector('button.active');
             if (activeFilter) {
                 if (activeFilter.id === 'btn-show-copa-alcer') renderPublicCalendar(appState.allCorridas.copaAlcer, 'Copa Alcer');
-                if (activeFilter.id === 'btn-show-geral') renderPublicCalendar(appState.allCorridas.geral, 'Calendário Geral');
+                if (activeFilter.id === 'btn-show-geral') renderPublicCalendar(appSTATE.allCorridas.geral, 'Calendário Geral');
             }
         }
     });
@@ -1900,7 +1904,8 @@ function handleRaceLike(raceId, ownerUid) {
     toggleLike({ 
         raceId: raceId, 
         ownerUid: ownerUid,
-        likerName: db.profile.runner1Name || authUser.email, // Usa o nome do perfil (se estiver no próprio perfil) ou o e-mail
+        // (V9.5.2) A CORREÇÃO DO RACE CONDITION GARANTE QUE 'db.profile' EXISTA AQUI
+        likerName: db.profile.runner1Name || authUser.email, 
         likerPic: db.profile.profilePictureUrl || null
     })
     .catch(error => {
@@ -2023,6 +2028,7 @@ function handleRaceCommentSubmit(e) {
         raceId: raceId,
         ownerUid: ownerUid,
         text: text,
+        // (V9.5.2) A CORREÇÃO DO RACE CONDITION GARANTE QUE 'db.profile' EXISTA AQUI
         commenterName: db.profile.runner1Name || authUser.email,
         commenterPic: db.profile.profilePictureUrl || null
     })
@@ -2088,6 +2094,7 @@ function handleProfileCommentSubmit(e) {
     addProfileComment({
         profileUid: profileUid,
         text: text,
+        // (V9.5.2) A CORREÇÃO DO RACE CONDITION GARANTE QUE 'db.profile' EXISTA AQUI
         commenterName: db.profile.runner1Name || authUser.email,
         commenterPic: db.profile.profilePictureUrl || null
     })
@@ -2206,7 +2213,7 @@ function toggleCollapsibleSection(contentElement, buttonElement) {
 // document.addEventListener('DOMContentLoaded', () => {
 //     if (localStorage.getItem(dom.toggleHistoryContent.id + '_collapsed') === 'true') {
 //         toggleCollapsibleSection(dom.toggleHistoryContent, dom.toggleHistoryBtn);
-//     }
+    }
 //     if (localStorage.getItem(dom.toggleCommentsContent.id + '_collapsed') === 'true') {
 //         toggleCollapsibleSection(dom.toggleCommentsContent, dom.toggleCommentsBtn);
 //     }
