@@ -1,496 +1,551 @@
-// =================================================================
-// ARQUIVO DE LÓGICA DO PAINEL DE ADMIN (V4 - Rede Social)
-// VERSÃO ESTÁVEL V9.6 (Baseada no original)
-// =================================================================
+// ==========================================
+// ARQUIVO DE LÓGICA DO PAINEL DE ADMIN (V10 - Rede Social)
+// VERSÃO ESTÁVEL (V10.0) - CORREÇÃO COMPLETA
+// ==========================================
 
+// --- Variáveis Globais do Painel Admin ---
+let adminDom = {}; // Objeto para cachear elementos do DOM do admin
+
+// --- Ponto de Entrada do Admin ---
 // Esta função é o ponto de entrada, chamada pelo main-logic.js se o usuário for admin
 function initializeAdminPanel(adminUid, db) {
     console.log("Inicializando Painel de Admin...");
-    
-    // --- Cache de Elementos DOM do Admin ---
-    const adminDom = {
+
+    // Cachear Elementos do DOM do Admin (V10)
+    // (Garante que todos os seletores estejam corretos e únicos)
+    adminDom = {
         adminPanel: document.getElementById('admin-panel'),
-        adminToggleBtn: document.getElementById('admin-toggle-btn'),
-        adminPanelContent: document.getElementById('admin-panel-content'),
-        // V1 (Usuários)
-        pendingList: document.getElementById('pending-list'),
-        approvedList: document.getElementById('approved-list'),
-        // V2 (Corridas)
-        raceForm: document.getElementById('race-form-admin'),
-        formTitle: document.getElementById('form-title'),
-        raceIdInput: document.getElementById('race-id-admin'),
+        adminDomToggleBtn: document.getElementById('btn-toggle-admin'),
+        pendingList: document.getElementById('admin-pending-list'),
+        
+        // Formulário de Corrida (CRUD)
+        raceForm: document.getElementById('admin-race-form'),
+        raceIdInput: document.getElementById('race-id'),
         raceNameInput: document.getElementById('race-name'),
-        raceCityInput: document.getElementById('race-city'),
-        raceDateInput: document.getElementById('race-date-admin'),
+        raceDateInput: document.getElementById('race-date'),
+        raceDistanceInput: document.getElementById('race-distance'),
+        raceLocalInput: document.getElementById('race-local'),
+        raceNotesInput: document.getElementById('race-notes'),
         raceLinkInput: document.getElementById('race-link'),
         raceCalendarSelect: document.getElementById('race-calendar'),
         copaRaceList: document.getElementById('copa-race-list'),
         geralRaceList: document.getElementById('geral-race-list'),
-        resultsRaceSelect: document.getElementById('race-select-results'),
+        
+        // Upload de Resultados (V10 - Foco da Correção)
+        resultsFileInput: document.getElementById('results-file-input'),
+        resultsRaceSelect: document.getElementById('select-results-race'),
         uploadResultsButton: document.getElementById('upload-results-button'),
-        resultsFileInput: document.getElementById('results-file'),
         uploadResultsStatus: document.getElementById('upload-results-status'),
-        rankingFileInput: document.getElementById('ranking-file'),
+
+        // Upload de Ranking (Copa Alcer)
+        rankingFileInput: document.getElementById('ranking-file-input'),
         uploadRankingButton: document.getElementById('upload-ranking-button'),
-        uploadRankingStatus: document.getElementById('upload-ranking-status'),
-        clearFormButton: document.getElementById('clear-form-button')
+        uploadRankingStatus: document.getElementById('upload-ranking-status')
     };
 
-    // Mostra o painel de admin
-    adminDom.adminPanel.classList.remove('hidden');
+    // --- Inicialização dos Listeners do Admin ---
+    setupAdminEventListeners(db);
+
+    // Carregar listas iniciais
+    loadPendingList(db);
+    loadAndDisplayRaces(db); // Para preencher os <select>
+}
+
+// ==========================================
+// SEÇÃO 1: LISTENERS DE EVENTOS DO ADMIN
+// ==========================================
+function setupAdminEventListeners(db) {
     
-    // Inicializa os listeners e carregadores
-    addAdminEventListeners();
-    loadPendingList();
-    loadApprovedUsersList();
-    loadAndDisplayRaces();
-
-    // --- Listeners de Eventos do Admin ---
-    function addAdminEventListeners() {
-        if (adminDom.adminToggleBtn) { 
-            adminDom.adminToggleBtn.addEventListener('click', toggleAdminPanel);
-        }
-
-        // V2
-        adminDom.raceForm.addEventListener('submit', handleRaceFormSubmit);
-        adminDom.clearFormButton.addEventListener('click', clearForm);
-        adminDom.uploadResultsButton.addEventListener('click', handleResultsUpload);
-        adminDom.uploadRankingButton.addEventListener('click', handleRankingUpload);
-    }
-    
-    function toggleAdminPanel() {
-        const isCollapsed = adminDom.adminPanel.classList.toggle('collapsed');
-        adminDom.adminToggleBtn.textContent = isCollapsed ? 'Mostrar' : 'Ocultar';
-    }
-
-
-    // ======================================================
-    // SEÇÃO DE ADMIN V1: GESTÃO DE USUÁRIOS
-    // ======================================================
-
-    function loadPendingList() {
-        const pendingRef = db.ref('/pendingApprovals');
-        pendingRef.on('value', (snapshot) => {
-            const requests = snapshot.val();
-            if (!requests) {
-                adminDom.pendingList.innerHTML = '<div class="loader" style="color:#1f2027; padding: 10px;">Nenhuma aprovação pendente.</div>';
-                return;
-            }
-            
-            adminDom.pendingList.innerHTML = '';
-            Object.entries(requests).forEach(([uid, request]) => {
-                const item = document.createElement('div');
-                item.className = 'pending-item';
-                item.innerHTML = `
-                    <div class="pending-item-info">
-                        ${request.email}
-                        <span>${request.runner1Name} ${request.runner2Name ? '& ' + request.runner2Name : ''} (${request.teamName || 'Sem Equipe'})</span>
-                    </div>
-                    <div class="admin-buttons">
-                        <button class="btn-approve" 
-                            data-uid="${uid}" 
-                            data-r1="${request.runner1Name}" 
-                            data-r2="${request.runner2Name || ''}" 
-                            data-team="${request.teamName || ''}">
-                            Aprovar
-                        </button>
-                        <button class="btn-reject" data-uid="${uid}" data-email="${request.email}">Recusar</button>
-                    </div>
-                `;
-                adminDom.pendingList.appendChild(item);
-            });
-            
-            adminDom.pendingList.querySelectorAll('.btn-approve').forEach(button => {
-                button.addEventListener('click', (e) => {
-                    const data = e.target.dataset;
-                    approveUser(data.uid, data.r1, data.r2, data.team);
-                });
-            });
-            
-            adminDom.pendingList.querySelectorAll('.btn-reject').forEach(button => {
-                button.addEventListener('click', (e) => {
-                    const data = e.target.dataset;
-                    rejectUser(data.uid, data.email);
-                });
-            });
+    // Listener para mostrar/esconder o painel de admin
+    if (adminDom.adminDomToggleBtn) {
+        adminDom.adminDomToggleBtn.addEventListener('click', () => {
+            adminDom.adminPanel.classList.toggle('hidden');
         });
     }
 
-    function loadApprovedUsersList() {
-        const publicProfilesRef = db.ref('/publicProfiles');
-        publicProfilesRef.on('value', (snapshot) => {
-            const profiles = snapshot.val();
-            adminDom.approvedList.innerHTML = ''; 
-            if (!profiles) {
-                adminDom.approvedList.innerHTML = '<div class="loader" style="color:#1f2027; padding: 10px;">Nenhum usuário aprovado.</div>';
-                return;
-            }
-            
-            Object.entries(profiles).forEach(([uid, profile]) => {
-                if (uid === adminUid) return; 
-                
-                const item = document.createElement('div');
-                item.className = 'approved-item';
-                
-                item.innerHTML = `
-                    <div class="approved-item-info">
-                        ${profile.runner1Name} ${profile.runner2Name ? '& ' + profile.runner2Name : ''}
-                        <span>Equipe: ${profile.teamName || 'N/A'}</span>
-                    </div>
-                    <div class="admin-buttons">
-                        <button class="btn-edit-user" 
-                            data-uid="${uid}" 
-                            data-r1="${profile.runner1Name || ''}" 
-                            data-r2="${profile.runner2Name || ''}" 
-                            data-team="${profile.teamName || ''}">
-                            Editar
-                        </button>
-                        <button class="btn-delete-user" data-uid="${uid}" data-name="${profile.runner1Name}">Excluir</button>
-                    </div>
-                `;
-                adminDom.approvedList.appendChild(item);
-            });
-
-            adminDom.approvedList.querySelectorAll('.btn-edit-user').forEach(button => {
-                button.addEventListener('click', (e) => {
-                    const data = e.target.dataset;
-                    editUser(data.uid, data.r1, data.r2, data.team);
-                });
-            });
-            
-            adminDom.approvedList.querySelectorAll('.btn-delete-user').forEach(button => {
-                button.addEventListener('click', (e) => {
-                    const data = e.target.dataset;
-                    deleteUser(data.uid, data.name);
-                });
-            });
+    // Listener para o formulário de Corrida (Criar/Editar)
+    if (adminDom.raceForm) {
+        adminDom.raceForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            handleRaceFormSubmit(e, db);
         });
     }
 
-    function editUser(uid, currentR1, currentR2, currentTeam) {
-        const newR1 = prompt("Nome Corredor 1:", currentR1);
-        if (newR1 === null) return; 
-        if (newR1.trim() === "") {
-            alert("O 'Nome Corredor 1' não pode ficar vazio.");
+    // Listener para o botão de Upload de Resultados (JSON)
+    if (adminDom.uploadResultsButton) {
+        adminDom.uploadResultsButton.addEventListener('click', () => {
+            handleResultsUpload(db);
+        });
+    }
+
+    // Listener para o botão de Upload de Ranking (Copa Alcer)
+    if (adminDom.uploadRankingButton) {
+        adminDom.uploadRankingButton.addEventListener('click', () => {
+            handleRankingUpload(db);
+        });
+    }
+}
+
+// ==========================================
+// SEÇÃO 2: GESTÃO DE USUÁRIOS (APROVAÇÃO)
+// ==========================================
+
+// Carrega a lista de usuários pendentes
+function loadPendingList(db) {
+    const pendingRef = db.ref('/pendingApprovals');
+    pendingRef.on('value', (snapshot) => {
+        if (!adminDom.pendingList) return; // Proteção
+
+        adminDom.pendingList.innerHTML = ''; // Limpa a lista
+        if (!snapshot.exists() || snapshot.numChildren() === 0) {
+            adminDom.pendingList.innerHTML = '<div class="pending-item" style="color:#1f2027; padding: 10px;">Nenhuma aprovação pendente.</div>';
             return;
         }
-
-        const newR2 = prompt("Nome Corredor 2 (Deixe VAZIO para remover):", currentR2);
-        if (newR2 === null) return; 
-
-        const newTeam = prompt("Nome da Equipe:", currentTeam);
-        if (newTeam === null) return; 
-
-        const updates = {};
-        const profileData = {
-            runner1Name: newR1.trim(),
-            runner2Name: newR2.trim() || "", 
-            teamName: newTeam.trim() || "Equipe" 
-        };
-
-        updates[`/users/${uid}/profile`] = profileData;
-        updates[`/publicProfiles/${uid}`] = profileData; 
-
-        db.ref().update(updates)
-            .then(() => {
-                alert(`Usuário ${newR1} atualizado com sucesso!`);
-            })
-            .catch((err) => {
-                console.error("Erro ao atualizar usuário:", err);
-                alert("Erro ao atualizar usuário.");
-            });
-    }
-
-    function approveUser(uid, runner1Name, runner2Name, teamName) {
-        const defaultProfile = {
-            runner1Name: runner1Name,
-            runner2Name: runner2Name || "", 
-            teamName: teamName || "Equipe"
-        };
         
-        const defaultPublicProfile = {
-            runner1Name: runner1Name,
-            runner2Name: runner2Name || "",
-            teamName: teamName || "Equipe"
-        };
-        
-        const updates = {};
-        updates[`/users/${uid}/profile`] = defaultProfile;
-        updates[`/publicProfiles/${uid}`] = defaultPublicProfile;
-        updates[`/pendingApprovals/${uid}`] = null; 
-
-        db.ref().update(updates)
-            .then(() => {
-                alert(`Usuário ${runner1Name} aprovado com sucesso!`);
-            })
-            .catch((err) => {
-                console.error("Erro ao aprovar:", err);
-                alert("Erro ao aprovar usuário.");
-            });
-    }
-
-    function rejectUser(uid, email) {
-        if (!confirm(`Tem certeza que deseja RECUSAR o cadastro de ${email}?\n\nIsso removerá a solicitação. O usuário não poderá acessar o sistema.`)) return;
-
-        db.ref('/pendingApprovals/' + uid).remove()
-            .then(() => {
-                alert(`Usuário ${email} recusado.`);
-            })
-            .catch((err) => {
-                console.error("Erro ao recusar:", err);
-                alert("Erro ao recusar usuário.");
-            });
-    }
-
-    function deleteUser(uid, name) {
-        if (!confirm(`ATENÇÃO!\n\nTem certeza que deseja EXCLUIR PERMANENTEMENTE o usuário ${name}?\n\TODOS os dados (perfil, corridas) serão apagados e não poderão ser recuperados.\n\n(Obs: O login do usuário ainda precisará ser excluído manualmente no painel do Firebase Authentication).`)) return;
-        
-        const updates = {};
-        updates[`/users/${uid}`] = null; 
-        updates[`/publicProfiles/${uid}`] = null; 
-        
-         db.ref().update(updates)
-            .then(() => {
-                alert(`Usuário ${name} excluído com sucesso do banco de dados.`);
-            })
-            .catch((err) => {
-                console.error("Erro ao excluir:", err);
-                alert("Erro ao excluir usuário.");
-            });
-    }
-
-    // ======================================================
-    // SEÇÃO DE ADMIN V2: GESTÃO DE CORRIDAS
-    // ======================================================
-
-    function loadAndDisplayRaces() {
-        db.ref('corridas').on('value', snapshot => {
-            const allCorridas = snapshot.val() || { copaAlcer: {}, geral: {} };
-            renderRaceList(allCorridas.copaAlcer, adminDom.copaRaceList, 'copaAlcer');
-            renderRaceList(allCorridas.geral, adminDom.geralRaceList, 'geral');
-            populateResultsRaceSelect({ ...allCorridas.copaAlcer, ...allCorridas.geral });
-        });
-    }
-
-    function renderRaceList(races, element, calendar) {
-        element.innerHTML = '';
-        if (!races || Object.keys(races).length === 0) {
-            element.innerHTML = '<p class="loader" style="font-size: 0.9em; color: #555; padding: 10px;">Nenhuma corrida cadastrada.</p>';
-            return;
-        }
         const fragment = document.createDocumentFragment();
-        Object.keys(races).forEach(raceId => {
-            const race = races[raceId];
+        snapshot.forEach((childSnapshot) => {
+            const uid = childSnapshot.key;
+            const request = childSnapshot.val();
+            
             const item = document.createElement('div');
-            item.className = 'admin-race-item';
+            item.className = 'pending-item';
+            
+            let teamDisplay = request.teamName ? ` (Equipe: ${request.teamName})` : '';
+            let runner2Display = request.runner2Name ? ` & ${request.runner2Name}` : '';
+            
             item.innerHTML = `
-                <div>
-                    <p>${race.nome}</p>
-                    <span>${new Date(race.data + 'T12:00:00Z').toLocaleDateString('pt-BR')} - ${race.cidade}</span>
+                <div class="pending-item-info">
+                    <span>${request.email}</span>
+                    <span class="pending-item-name">${request.runner1Name}${runner2Display}${teamDisplay}</span>
                 </div>
-                <div class="admin-race-item-controls">
-                    <button class="btn-control edit-btn" data-id="${raceId}" data-calendar="${calendar}"><i class='bx bx-pencil'></i></button>
-                    <button class="btn-control delete-btn" data-id="${raceId}" data-calendar="${calendar}"><i class='bx bx-trash'></i></button>
+                <div class="admin-buttons">
+                    <button classa="btn-approve-user" data-uid="${uid}">Aprovar</button>
+                    <button class="btn-reject-user" data-uid="${uid}">Rejeitar</button>
                 </div>
             `;
+            
+            // Listeners para os botões de ação
+            item.querySelector('.btn-approve-user').addEventListener('click', () => {
+                approveUser(db, uid, request.runner1Name, request.runner2Name, request.teamName);
+            });
+            item.querySelector('.btn-reject-user').addEventListener('click', () => {
+                rejectUser(db, uid);
+            });
+            
             fragment.appendChild(item);
         });
-        element.appendChild(fragment);
+        adminDom.pendingList.appendChild(fragment);
+    });
+}
 
-        element.querySelectorAll('.edit-btn').forEach(btn => btn.addEventListener('click', () => populateRaceFormForEdit(btn.dataset.id, btn.dataset.calendar)));
-        element.querySelectorAll('.delete-btn').forEach(btn => btn.addEventListener('click', () => deleteRace(btn.dataset.id, btn.dataset.calendar)));
-    }
+// Aprova um usuário
+function approveUser(db, uid, runner1Name, runner2Name, teamName) {
+    console.log(`Aprovando usuário: ${uid}`);
+    // Define nomes padrão caso sejam nulos ou vazios
+    const defaultRunner1Name = runner1Name || "Corredor 1";
+    const defaultRunner2Name = runner2Name || "";
+    const defaultTeamName = teamName || "Equipe";
 
-    function handleRaceFormSubmit(e) {
-        e.preventDefault();
-        const raceData = {
-            nome: adminDom.raceNameInput.value,
-            cidade: adminDom.raceCityInput.value,
-            data: adminDom.raceDateInput.value,
-            linkInscricao: adminDom.raceLinkInput.value
-        };
-        const id = adminDom.raceIdInput.value;
-        const calendar = adminDom.raceCalendarSelect.value;
-        const refPath = `corridas/${calendar}`;
-
-        let promise;
-        if (id) {
-            promise = db.ref(`${refPath}/${id}`).update(raceData);
-        } else {
-            const newRaceRef = db.ref(refPath).push();
-            raceData.id = newRaceRef.key; // Salva o ID autogerado
-            promise = newRaceRef.set(raceData);
+    // Cria o perfil público padrão
+    const defaultPublicProfile = {
+        profile: {
+            runner1Name: defaultRunner1Name,
+            runner2Name: defaultRunner2Name,
+            teamName: defaultTeamName,
+            bio: "",
+            location: "",
+            profilePictureUrl: "icons/icon-192x192.png" // Foto padrão
         }
+    };
 
-        promise.then(() => {
-            console.log("Corrida salva com sucesso!");
-            clearForm();
-        }).catch(error => console.error("Erro ao salvar corrida:", error));
-    }
-    
-    function populateRaceFormForEdit(id, calendar) {
-        db.ref(`corridas/${calendar}/${id}`).once('value', snapshot => {
-            const race = snapshot.val();
-            if (race) {
-                adminDom.formTitle.textContent = "Editando Corrida";
-                adminDom.raceIdInput.value = id;
-                adminDom.raceNameInput.value = race.nome;
-                adminDom.raceCityInput.value = race.cidade;
-                adminDom.raceDateInput.value = race.data;
-                adminDom.raceLinkInput.value = race.linkInscricao || '';
-                adminDom.raceCalendarSelect.value = calendar;
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-            }
+    // Prepara as atualizações atômicas
+    const updates = {};
+    updates[`/users/${uid}`] = defaultPublicProfile; // Cria o perfil do usuário
+    updates[`/pendingApprovals/${uid}`] = null;      // Remove da lista de pendentes
+    updates[`/approvedUsers/${uid}`] = true;         // Adiciona à lista de aprovados (para regras de segurança)
+
+    db.ref().update(updates)
+        .then(() => {
+            alert(`Usuário ${uid} aprovado com sucesso!`);
+            console.log("Usuário aprovado.");
+        })
+        .catch((error) => {
+            console.error("Erro ao aprovar usuário: ", error);
+            alert("Erro ao aprovar usuário.");
         });
-    }
+}
 
-    function deleteRace(id, calendar) {
-        if (confirm("Tem certeza que deseja excluir esta corrida? Os resultados (se houver) NÃO serão excluídos, mas a corrida sumirá do calendário.")) {
-            db.ref(`corridas/${calendar}/${id}`).remove()
-              .then(() => console.log("Corrida excluída com sucesso."))
-              .catch(error => console.error("Erro ao excluir corrida:", error));
-        }
-    }
-    
-    function clearForm() {
-        adminDom.formTitle.textContent = "Cadastrar Nova Corrida";
-        adminDom.raceForm.reset();
-        adminDom.raceIdInput.value = '';
-    }
+// Rejeita um usuário
+function rejectUser(db, uid) {
+    console.log(`Rejeitando usuário: ${uid}`);
+    const updates = {};
+    updates[`/pendingApprovals/${uid}`] = null; // Remove da lista de pendentes
+    // (Opcional: mover para uma lista de "rejeitados")
 
-    function populateResultsRaceSelect(races) {
-        adminDom.resultsRaceSelect.innerHTML = '<option value="">Selecione uma etapa</option>';
-        if(!races) return;
-        const sortedRaces = Object.values(races).sort((a,b) => new Date(b.data) - new Date(a.data));
-        sortedRaces.forEach(race => {
-            const option = document.createElement('option');
-            option.value = race.id;
-            option.textContent = `${race.nome} (${new Date(race.data + 'T12:00:00Z').toLocaleDateString('pt-BR')})`;
-            adminDom.resultsRaceSelect.appendChild(option);
+    db.ref().update(updates)
+        .then(() => {
+            alert(`Usuário ${uid} rejeitado.`);
+            console.log("Usuário rejeitado.");
+        })
+        .catch((error) => {
+            console.error("Erro ao rejeitar usuário: ", error);
+            alert("Erro ao rejeitar usuário.");
         });
-    }
+}
 
-    function handleResultsUpload() {
-        const raceId = adminDom.resultsRaceSelect.value;
-        const file = adminDom.resultsFileInput.files[0];
-        if (!raceId || !file) {
-            updateStatus("Selecione uma corrida e um arquivo JSON.", "error", 'results');
+// ==========================================
+// SEÇÃO 3: GESTÃO DE CORRIDAS (CRUD)
+// ==========================================
+
+// Carrega as corridas nos seletores <select>
+function loadAndDisplayRaces(db) {
+    const racesRef = db.ref('/corridas');
+    racesRef.on('value', (snapshot) => {
+        if (!adminDom.resultsRaceSelect || !adminDom.copaRaceList || !adminDom.geralRaceList) return;
+
+        // Limpa os seletores
+        adminDom.resultsRaceSelect.innerHTML = '<option value="">Selecione uma corrida...</option>';
+        adminDom.copaRaceList.innerHTML = '';
+        adminDom.geralRaceList.innerHTML = '';
+
+        if (!snapshot.exists()) {
+            console.warn("Nenhuma corrida encontrada no DB.");
             return;
         }
-        readFileAsJson(file, (data) => processAndUploadResults(raceId, data), 'results');
-    }
 
-    function handleRankingUpload() {
-        const file = adminDom.rankingFileInput.files[0];
-        if (!file) {
-            updateStatus("Selecione um arquivo JSON de ranking.", "error", 'ranking');
-            return;
-        }
-        readFileAsJson(file, (data) => uploadFinalRanking(data), 'ranking');
-    }
+        const races = snapshot.val();
+        const fragmentResults = document.createDocumentFragment();
+        const fragmentCopa = document.createDocumentFragment();
+        const fragmentGeral = document.createDocumentFragment();
 
-    function readFileAsJson(file, callback, type) {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            try {
-                const jsonData = JSON.parse(event.target.result);
-                callback(jsonData);
-            } catch (error) {
-                updateStatus(`Erro no formato do arquivo JSON: ${error.message}`, "error", type);
-            }
-        };
-        reader.readAsText(file);
-    }
-    
-    // =================================================================
-    // INÍCIO DA ALTERAÇÃO (V9.6) - Normalização do Upload
-    // =================================================================
-    function processAndUploadResults(raceId, resultsData) {
-        updateStatus("Processando e enviando resultados da etapa...", "loading", 'results');
+        Object.keys(races).forEach((calendarKey) => {
+            const calendarRaces = races[calendarKey];
+            Object.keys(calendarRaces).forEach((raceId) => {
+                const race = calendarRaces[raceId];
+                
+                // Option para o seletor de upload de resultados
+                const option = document.createElement('option');
+                option.value = raceId;
+                option.textContent = `${race.nome} (${new Date(race.data + 'T12:00:00Z').toLocaleDateString('pt-BR')})`; // Adiciona T12:00:00Z para evitar problemas de fuso
+                option.dataset.calendar = calendarKey; // Salva o calendário (copaAlcer ou geral)
+                fragmentResults.appendChild(option);
 
-        // ETAPA DE NORMALIZAÇÃO (A "Tradução")
-        const normalizedData = resultsData.map(atleta => {
-            const cleanAthlete = {};
-            
-            // 1. Mapeia todas as chaves originais (incluindo as desconhecidas como SEXO, Id., Fx.Et., Cl.Fx.)
-            for (const key in atleta) {
-                if (Object.hasOwnProperty.call(atleta, key)) {
-                    const cleanKey = key.trim();
-                    cleanAthlete[cleanKey] = atleta[key];
+                // Item para a lista de CRUD (Copa ou Geral)
+                const raceItem = createRaceListItem(raceId, race, calendarKey, db);
+                
+                if (calendarKey === 'copaAlcer') {
+                    fragmentCopa.appendChild(raceItem);
+                } else if (calendarKey === 'geral') {
+                    fragmentGeral.appendChild(raceItem);
                 }
-            }
-
-            // 2. Normaliza (Traduz) as chaves principais para o padrão do sistema (minúsculas)
-            cleanAthlete.category = atleta.category || atleta.CATEGORIA || "Categoria Desconhecida";
-            cleanAthlete.placement = atleta.placement || atleta.Col || atleta.class_fx || 9999;
-            cleanAthlete.name = atleta.name || atleta.NOME || "Atleta Desconhecido";
-            cleanAthlete.team = atleta.team || atleta.Equipe || atleta.assessoria || "Individual";
-            cleanAthlete.time = atleta.time || atleta.TEMPO || atleta.liquid_time || "N/A";
-            
-            // Garante compatibilidade com 'gestao.json'
-            if (atleta.age_group) cleanAthlete['Fx.Et.'] = atleta.age_group;
-            if (atleta.class_fx) cleanAthlete['Cl.Fx.'] = atleta.class_fx;
-
-            return cleanAthlete;
-        });
-        // FIM DA NORMALIZAÇÃO
-
-        // 1. Agrupar por categoria para calcular o total (Usa 'normalizedData')
-        const groupedByCategory = {};
-        normalizedData.forEach(athlete => { 
-            const category = athlete.category; // Já está normalizado
-            if (!groupedByCategory[category]) {
-                groupedByCategory[category] = [];
-            }
-            groupedByCategory[category].push(athlete);
-        });
-
-        // 2. Adicionar a informação de colocação/total a cada registro
-        const processedResults = [];
-        for (const category in groupedByCategory) {
-            const athletes = groupedByCategory[category];
-            const totalParticipants = athletes.length;
-            
-            athletes.forEach(athlete => {
-                try {
-                    const placement = parseInt(athlete.placement); // Usa o normalizado
-                    athlete.placement_info = `${placement} de um total de ${totalParticipants}`;
-                } catch (e) {
-                    athlete.placement_info = ""; 
-                }
-                processedResults.push(athlete); // Salva o objeto completo normalizado
             });
+        });
+
+        adminDom.resultsRaceSelect.appendChild(fragmentResults);
+        adminDom.copaRaceList.appendChild(fragmentCopa);
+        adminDom.geralRaceList.appendChild(fragmentGeral);
+    });
+}
+
+// Cria o <li> para a lista de gerenciamento de corridas
+function createRaceListItem(raceId, race, calendarKey, db) {
+    const item = document.createElement('li');
+    item.className = 'admin-race-item';
+    
+    // Formata a data
+    const raceDate = new Date(race.data + 'T12:00:00Z').toLocaleDateString('pt-BR');
+    
+    item.innerHTML = `
+        <div class="race-item-info">
+            <strong>${race.nome}</strong>
+            <span>${race.cidade} - ${raceDate}</span>
+        </div>
+        <div class="admin-buttons">
+            <button class="btn-edit-user" data-race-id="${raceId}" data-calendar="${calendarKey}"><i class='bx bx-pencil'></i> Editar</button>
+            <button class="btn-delete-user" data-race-id="${raceId}" data-calendar="${calendarKey}"><i class='bx bx-trash'></i> Excluir</button>
+        </div>
+    `;
+
+    // Listener para Editar
+    item.querySelector('.btn-edit-user').addEventListener('click', () => {
+        populateRaceForm(raceId, race, calendarKey);
+    });
+
+    // Listener para Excluir
+    item.querySelector('.btn-delete-user').addEventListener('click', () => {
+        if (confirm(`Tem certeza que deseja excluir a corrida "${race.nome}"? ISSO É IRREVERSÍVEL.`)) {
+            deleteRace(db, raceId, calendarKey);
+        }
+    });
+
+    return item;
+}
+
+// Preenche o formulário para edição de uma corrida existente
+function populateRaceForm(raceId, race, calendarKey) {
+    adminDom.raceIdInput.value = raceId;
+    adminDom.raceNameInput.value = race.nome || '';
+    adminDom.raceDateInput.value = race.data || '';
+    adminDom.raceDistanceInput.value = race.distancia || '';
+    adminDom.raceLocalInput.value = race.cidade || '';
+    adminDom.raceNotesInput.value = race.notas || '';
+    adminDom.raceLinkInput.value = race.link || '';
+    adminDom.raceCalendarSelect.value = calendarKey || 'geral';
+    
+    // Rola a tela para o formulário
+    adminDom.raceForm.scrollIntoView({ behavior: 'smooth' });
+}
+
+// Salva (Cria ou Atualiza) uma corrida
+function handleRaceFormSubmit(e, db) {
+    const raceData = {
+        nome: adminDom.raceNameInput.value,
+        data: adminDom.raceDateInput.value,
+        distancia: adminDom.raceDistanceInput.value,
+        cidade: adminDom.raceLocalInput.value,
+        notas: adminDom.raceNotesInput.value,
+        link: adminDom.raceLinkInput.value,
+    };
+    
+    const calendar = adminDom.raceCalendarSelect.value;
+    let raceId = adminDom.raceIdInput.value;
+    
+    let dbRef;
+    
+    if (raceId) {
+        // Atualiza (Update)
+        dbRef = db.ref(`/corridas/${calendar}/${raceId}`);
+    } else {
+        // Cria (Create)
+        dbRef = db.ref(`/corridas/${calendar}`).push();
+        raceId = dbRef.key; // Pega o novo ID gerado
+        raceData.raceId = raceId; // Salva o ID autogerado dentro do objeto da corrida
+    }
+    
+    dbRef.set(raceData)
+        .then(() => {
+            alert("Corrida salva com sucesso!");
+            console.log("Corrida salva:", raceId);
+            adminDom.raceForm.reset();
+            adminDom.raceIdInput.value = ''; // Limpa o ID oculto
+        })
+        .catch((error) => {
+            console.error("Erro ao salvar corrida: ", error);
+            alert("Erro ao salvar corrida.");
+        });
+}
+
+// Exclui uma corrida
+function deleteRace(db, raceId, calendarKey) {
+    // TODO: Excluir também resultados, mídias, likes e comentários associados.
+    // Por enquanto, apenas exclui a corrida.
+    
+    const dbRef = db.ref(`/corridas/${calendarKey}/${raceId}`);
+    dbRef.remove()
+        .then(() => {
+            alert("Corrida excluída com sucesso!");
+            console.log("Corrida excluída:", raceId);
+        })
+        .catch((error) => {
+            console.error("Erro ao excluir corrida: ", error);
+            alert("Erro ao excluir corrida.");
+        });
+}
+
+// ==========================================
+// SEÇÃO 4: UPLOAD DE RESULTADOS (JSON V10 - CORRIGIDO)
+// ==========================================
+
+function handleResultsUpload(db) {
+    const raceId = adminDom.resultsRaceSelect.value;
+    const selectedOption = adminDom.resultsRaceSelect.options[adminDom.resultsRaceSelect.selectedIndex];
+    const calendar = selectedOption.dataset.calendar;
+    
+    const file = adminDom.resultsFileInput.files[0];
+    
+    if (!raceId || !calendar) {
+        updateStatus(adminDom.uploadResultsStatus, "Selecione uma corrida primeiro.", "error");
+        return;
+    }
+    if (!file) {
+        updateStatus(adminDom.uploadResultsStatus, "Selecione um arquivo JSON.", "error");
+        return;
+    }
+    
+    updateStatus(adminDom.uploadResultsStatus, "Processando arquivo...", "loading");
+    
+    // Usa o utilitário para ler o JSON
+    readAsJson(file, (data) => {
+        // Envia os dados lidos para a função de processamento (V10)
+        processAndUploadResults(db, data, raceId, calendar);
+    }, (error) => {
+        updateStatus(adminDom.uploadResultsStatus, `Erro ao ler arquivo: ${error}`, "error");
+    });
+}
+
+// Função de Upload de Ranking (Copa Alcer)
+function handleRankingUpload(db) {
+    const file = adminDom.rankingFileInput.files[0];
+    if (!file) {
+        updateStatus(adminDom.uploadRankingStatus, "Selecione um arquivo JSON de ranking.", "error");
+        return;
+    }
+
+    updateStatus(adminDom.uploadRankingStatus, "Enviando ranking...", "loading");
+
+    readAsJson(file, (rankingData) => {
+        // Envia os dados lidos para a função específica de ranking
+        uploadFinalRanking(db, rankingData);
+    }, (error) => {
+        updateStatus(adminDom.uploadRankingStatus, `Erro ao ler arquivo: ${error}`, "error");
+    });
+}
+
+// ==========================================
+// SEÇÃO 5: LÓGICA DE PROCESSAMENTO DE DADOS (V10 - CORRIGIDO)
+// ==========================================
+
+// Utilitário para ler o arquivo JSON
+function readAsJson(file, onSuccess, onError) {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        try {
+            const data = JSON.parse(event.target.result);
+            onSuccess(data);
+        } catch (e) {
+            console.error("Erro no parse do JSON: ", e);
+            onError(e.message);
+        }
+    };
+    reader.onerror = (event) => {
+        console.error("Erro ao ler o arquivo: ", event.target.error);
+        onError(event.target.error);
+    };
+    reader.readAsText(file);
+}
+
+/**
+ * (V10 - CORRIGIDO)
+ * Processa o JSON (Rodobens) e faz o upload para o Firebase.
+ * Esta é a função central que foi corrigida.
+ */
+function processAndUploadResults(db, jsonData, raceId, calendar) {
+    
+    // 1. Mapeia os dados do JSON (Array de atletas)
+    const normalizedData = jsonData.map(atleta => {
+        const cleanAtleta = {};
+        
+        // Itera pelas chaves do objeto original (ex: "Coloc.", "Atleta", "Fx.Et.")
+        for (const originalKey in atleta) {
+            if (Object.hasOwnProperty.call(atleta, originalKey)) {
+                
+                // Remove espaços e converte para minúsculas
+                const cleanKey = originalKey.trim().toLowerCase();
+                let newKey = null;
+
+                // 2. Normaliza (Traduz) as chaves
+                // (Baseado na "Solução O JSON Correto" do vídeo ...555.mp4)
+                if (cleanKey.includes('coloc.') || cleanKey.includes('cl.fx.')) {
+                    // Prioriza Cl.Fx. (Classificação na Faixa) se existir
+                    if (cleanKey.includes('cl.fx.')) {
+                         newKey = 'placement';
+                    } else if (!cleanAtleta.placement) {
+                        // Usa Coloc. (Geral) apenas se Cl.Fx. não foi definido
+                        newKey = 'placement'; 
+                    }
+                } else if (cleanKey.includes('atleta') || cleanKey.includes('nome')) {
+                    newKey = 'name';
+                } else if (cleanKey.includes('categoria') || cleanKey.includes('fx.et.')) {
+                    newKey = 'category';
+                } else if (cleanKey.includes('equipe')) {
+                    newKey = 'team';
+                } else if (cleanKey.includes('tempo')) {
+                    newKey = 'time';
+                }
+                
+                // Atribui o valor à nova chave
+                if (newKey) {
+                    cleanAtleta[newKey] = atleta[originalKey];
+                }
+            }
         }
         
-        // Ordena os resultados finais
-        processedResults.sort((a, b) => {
-             if (a.category < b.category) return -1;
-             if (a.category > b.category) return 1;
-             return parseInt(a.placement) - parseInt(b.placement);
+        // Garante que os campos essenciais existam
+        cleanAtleta.category = cleanAtleta.category || "GERAL"; // Categoria padrão
+        
+        return cleanAtleta;
+    });
+
+    // 3. Agrupa os atletas por Categoria
+    const groupedByCategory = normalizedData.reduce((acc, atleta) => {
+        const category = atleta.category;
+        
+        // Se a categoria ainda não existe no acumulador, cria
+        if (!acc[category]) {
+            acc[category] = [];
+        }
+        
+        // Adiciona o atleta à sua categoria
+        acc[category].push(atleta);
+        return acc;
+    }, {});
+    
+    // 4. Ordena os atletas dentro de cada categoria por 'placement' (numérico)
+    for (const category in groupedByCategory) {
+        groupedByCategory[category].sort((a, b) => {
+            const placementA = parseInt(a.placement, 10) || 0;
+            const placementB = parseInt(b.placement, 10) || 0;
+            return placementA - placementB;
         });
-
-        // 3. Upload para o Firebase
-        db.ref('resultadosEtapas/' + raceId).set(processedResults)
-            .then(() => updateStatus("Resultados da etapa atualizados com sucesso!", "success", 'results'))
-            .catch(error => updateStatus(`Falha no envio: ${error.message}`, "error", 'results'));
-    }
-    // =================================================================
-    // FIM DA ALTERAÇÃO (V9.6)
-    // =================================================================
-
-    function uploadFinalRanking(rankingData) {
-        updateStatus("Enviando ranking final...", "loading", 'ranking');
-        db.ref('rankingCopaAlcer').set(rankingData)
-            .then(() => updateStatus("Ranking final atualizado com sucesso!", "success", 'ranking'))
-            .catch(error => updateStatus(`Falha no envio: ${error.message}`, "error", 'ranking'));
     }
 
-    function updateStatus(message, type, target) {
-        const statusElement = target === 'ranking' ? adminDom.uploadRankingStatus : adminDom.uploadResultsStatus;
-        statusElement.textContent = message;
-        statusElement.className = 'upload-status ';
-        if (type === 'success') statusElement.classList.add('text-green-500'); 
-        else if (type === 'error') statusElement.classList.add('text-red-500'); 
-        else statusElement.classList.add('text-yellow-500'); 
+    // 5. Salva o array processado e agrupado no Firebase
+    const resultsRef = db.ref(`/resultadosEtapas/${raceId}`);
+    
+    resultsRef.set(groupedByCategory)
+        .then(() => {
+            updateStatus(adminDom.uploadResultsStatus, "Resultados enviados com sucesso!", "success");
+            console.log("Resultados salvos com sucesso para a corrida:", raceId);
+            adminDom.resultsFileInput.value = ''; // Limpa o input
+        })
+        .catch((error) => {
+            updateStatus(adminDom.uploadResultsStatus, `Falha no envio: ${error.message}`, "error");
+            console.error("Erro ao salvar resultados: ", error);
+        });
+}
+
+
+/**
+ * Salva o JSON do Ranking (Copa Alcer)
+ */
+function uploadFinalRanking(db, rankingData) {
+    const rankingRef = db.ref('rankingCopaAlcer');
+    
+    rankingRef.set(rankingData)
+        .then(() => {
+            updateStatus(adminDom.uploadRankingStatus, "Ranking Copa Alcer atualizado!", "success");
+            console.log("Ranking Copa Alcer salvo com sucesso.");
+            adminDom.rankingFileInput.value = ''; // Limpa o input
+        })
+        .catch((error) => {
+            updateStatus(adminDom.uploadRankingStatus, `Falha no envio: ${error.message}`, "error");
+            console.error("Erro ao salvar Ranking Copa Alcer: ", error);
+        });
+}
+
+
+// ==========================================
+// SEÇÃO 6: UTILITÁRIOS DO ADMIN
+// ==========================================
+
+// Atualiza a mensagem de status para o usuário
+function updateStatus(element, message, type) {
+    if (!element) return;
+    
+    element.textContent = message;
+    element.classList.remove('success', 'error', 'loading');
+    
+    if (type) {
+        element.classList.add(type);
     }
 }
