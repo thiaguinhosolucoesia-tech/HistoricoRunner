@@ -1,2842 +1,1718 @@
-// ==========================================
-// ARQUIVO DE LÓGICA PRINCIPAL (V10 - Rede Social)
-// VERSÃO ESTÁVEL (V10.1) - CORREÇÃO COMPLETA (SINTAXE + NULL CHECKS)
-// (Complementa admin-logic.js)
-// ==========================================
+// =================================================================
+// ARQUIVO DE LÓGICA PRINCIPAL (V9.2 - Estrutura BD Separada + Layout + Add Corrida Pública + Correções)
+// ATUALIZADO (V9.3) COM TAREFAS 2 (Excluir Mídia) e 3 (Ver Classificação)
+// CORREÇÃO (V9.4) DO ERRO 'sort' of undefined em openMediaUploadModal
+// =================================================================
 
 // --- Variáveis Globais do App ---
-let db = null;
-let auth = null;
-let functions = null;
-let appState = {
-    currentViewingUid: null, // UID do perfil sendo visualizado
-    authUserId: null,        // UID do usuário logado
-    isAdmin: false,
-    hasRunner2: false,       // Flag para perfis com 2 corredores
-    profileData: {},         // Cache dos dados do perfil
-    allRaces: {},            // Cache de todas as corridas (copa e geral)
-    allResultadosEtapas: {}, // Cache de todos os resultados (V10)
-    rankingCopa: {},         // Cache do ranking (V10)
-    currentRaceLikes: {},    // Listeners de likes (para limpar)
-    currentRaceComments: {}  // Listeners de comentários (para limpar)
+let db = {
+    races: {}, // Dados das corridas do usuário visualizado
+    profile: {} // Dados do perfil do usuário visualizado
 };
-let dom = {}; // Cache de Elementos do DOM
-
-// --- Constantes de Nomes/Status ---
-const RUNNER_1_PROFILE = { name: 'Corredor 1', nameShort: 'Cor1', emoji: '🏃‍♂️' };
-const RUNNER_2_PROFILE = { name: 'Corredor 2', nameShort: 'Cor2', emoji: '🏃‍♀️' };
-const STATUS_COMPLETED = 'completed';
-const STATUS_PLANNED = 'planned';
-const STATUS_SKIPPED = 'skipped';
-
-// --- Ponto de Entrada Principal ---
-// =================================================================
-// INÍCIO DA CORREÇÃO 1 (Erro de Sintaxe "V")
-// A linha 32 foi corrigida de ()V => para () =>
-// =================================================================
-document.addEventListener('DOMContentLoaded', () => {
-// =================================================================
-// FIM DA CORREÇÃO 1
-// =================================================================
-    cacheDomElements();
-    setupEventListeners();
-    initializeFirebase();
-});
-
-// ==========================================
-// SEÇÃO 0: INICIALIZAÇÃO E AUTENTICAÇÃO
-// ==========================================
-
-function cacheDomElements() {
-    // Vistas Principais
-    dom.appLoading = document.getElementById('app-loading');
-    dom.loginOrPublicView = document.getElementById('login-or-public-view');
-    dom.loginView = document.getElementById('login-view');
-    dom.signupView = document.getElementById('signup-view');
-    dom.dashboardView = document.getElementById('dashboard-view');
-    dom.publicListView = document.getElementById('public-list-view');
-    dom.pendingView = document.getElementById('pending-view');
-    dom.rejectedView = document.getElementById('rejected-view');
-
-    // Login/Signup
-    dom.loginForm = document.getElementById('login-form');
-    dom.loginEmail = document.getElementById('login-email');
-    dom.loginPassword = document.getElementById('login-password');
-    dom.loginError = document.getElementById('login-error');
-    dom.loginTitle = document.getElementById('login-title');
-    dom.btnShowLogin = document.getElementById('btn-show-login');
-    dom.btnShowSignup = document.getElementById('btn-show-signup');
-    dom.btnLoginSubmit = document.getElementById('btn-login-submit');
-    dom.signupForm = document.getElementById('signup-form');
-    dom.signupEmail = document.getElementById('signup-email');
-    dom.signupPassword = document.getElementById('signup-password');
-    dom.signupRunner1Name = document.getElementById('signup-runner1-name');
-    dom.signupRunner2Name = document.getElementById('signup-runner2-name');
-    dom.signupTeamName = document.getElementById('signup-team-name');
-    dom.signupError = document.getElementById('signup-error');
-    dom.btnSignupSubmit = document.getElementById('btn-signup-submit');
-    dom.rejectedEmailText = document.getElementById('rejected-email-text');
-    dom.btnTrySignupAgain = document.getElementById('btn-try-signup-again');
-
-    // Navegação Principal
-    dom.btnLogout = document.getElementById('btn-logout');
-    dom.btnBackToPublic = document.getElementById('btn-back-to-public');
-    dom.btnBackToMyDashboard = document.getElementById('btn-back-to-my-dashboard');
-    
-    // Cabeçalho (V8)
-    dom.header = document.querySelector('header.header');
-    dom.headerProfileInfo = document.getElementById('header-profile-info');
-    dom.headerProfilePicture = document.getElementById('header-profile-picture');
-    dom.headerProfileName = document.getElementById('header-profile-name');
-
-    // Lista Pública (Perfis)
-    dom.publicListContainer = document.getElementById('public-list-container');
-
-    // Dashboard (Perfil do Usuário)
-    dom.userEmail = document.getElementById('user-email');
-    dom.profileContentSection = document.getElementById('profile-content-section');
-    dom.profileCommentsSection = document.getElementById('profile-comments-section'); // Mural (V9.2)
-    dom.historyContent = document.getElementById('history-content');
-    dom.statsContent = document.getElementById('stats-content');
-    dom.mediaContent = document.getElementById('media-content');
-
-    // Botões de Conteúdo (Dashboard)
-    dom.profileContentBtn = document.getElementById('btn-profile-content');
-    dom.profileCommentsBtn = document.getElementById('btn-profile-comments');
-    dom.historyBtn = document.getElementById('btn-history');
-    dom.statsBtn = document.getElementById('btn-stats');
-    dom.mediaBtn = document.getElementById('btn-media');
-    
-    // Botões de Ação do Perfil
-    dom.btnEditProfile = document.getElementById('btn-edit-profile');
-    dom.btnAddRace = document.getElementById('btn-add-race');
-    dom.btnAddMedia = document.getElementById('btn-add-media');
-    dom.profileCommentsForm = document.getElementById('profile-comments-form'); // V9.2
-
-    // Conteúdo Público (Resultados, Ranking, Calendário) (V9.7)
-    dom.publicContentSection = document.getElementById('public-content-section');
-    dom.publicContentTitle = document.getElementById('public-content-title');
-    dom.publicContentFilters = document.getElementById('public-content-filters');
-    dom.publicContentContainer = document.getElementById('public-content-container');
-    dom.btnShowRanking = document.getElementById('btn-show-ranking');
-    dom.btnShowCopaAlcer = document.getElementById('btn-show-copa-alcer');
-    dom.btnShowGeral = document.getElementById('btn-show-geral');
-
-    // --- Modais ---
-    
-    // Modal CRUD de Corrida
-    dom.raceModal = document.getElementById('race-modal');
-    dom.raceModalOverlay = document.getElementById('race-modal-overlay');
-    dom.raceModalTitle = document.getElementById('race-modal-title');
-    dom.raceFormModal = document.getElementById('race-form-modal');
-    dom.raceId = document.getElementById('race-id-modal');
-    dom.raceName = document.getElementById('race-name-modal');
-    dom.raceDate = document.getElementById('race-date-modal');
-    dom.raceDistance = document.getElementById('race-distance-modal');
-    dom.raceTimeRunner1 = document.getElementById('race-time-runner1');
-    dom.raceStatusRunner1 = document.getElementById('race-status-runner1');
-    dom.raceTimeRunner2 = document.getElementById('race-time-runner2');
-    dom.raceStatusRunner2 = document.getElementById('race-status-runner2');
-    dom.juntosCheckbox = document.getElementById('race-juntos');
-    dom.runner2Fields = document.getElementById('runner-2-fields');
-    dom.raceNotes = document.getElementById('race-notes-modal');
-    dom.btnSaveRace = document.getElementById('btn-save-race');
-    dom.btnDeleteRace = document.getElementById('btn-delete-race');
-    dom.btnCloseRaceModal = document.getElementById('btn-close-race-modal');
-
-    // Modal Edição de Perfil
-    dom.profileModal = document.getElementById('profile-modal');
-    dom.profileModalOverlay = document.getElementById('profile-modal-overlay');
-    dom.profileEditForm = document.getElementById('profile-edit-form');
-    dom.profileRunner1Name = document.getElementById('profile-runner1-name');
-    dom.profileRunner2Name = document.getElementById('profile-runner2-name');
-    dom.profileTeamName = document.getElementById('profile-team-name');
-    dom.profileBio = document.getElementById('profile-bio');
-    dom.profileLocation = document.getElementById('profile-location');
-    dom.profileBirthdateEdit = document.getElementById('profile-birthdate-edit');
-    dom.profilePictureUrl = document.getElementById('profile-picture-url');
-    dom.profilePictureUpload = document.getElementById('profile-picture-upload');
-    dom.profilePictureProgress = document.getElementById('profile-picture-progress');
-    dom.btnSaveProfile = document.getElementById('btn-save-profile');
-    dom.btnCloseProfileModal = document.getElementById('btn-close-profile-modal');
-
-    // Modal Upload de Mídia
-    dom.mediaUploadModal = document.getElementById('media-upload-modal');
-    dom.mediaModalOverlay = document.getElementById('media-modal-overlay');
-    dom.mediaUploadForm = document.getElementById('media-upload-form');
-    dom.mediaUploadRaceId = document.getElementById('media-upload-race-id');
-    dom.mediaUploadName = document.getElementById('media-upload-name'); // Título da Mídia
-    dom.mediaUploadFile = document.getElementById('media-upload-file');
-    dom.mediaUploadPreview = document.getElementById('media-upload-preview');
-    dom.mediaUploadProgress = document.getElementById('media-upload-progress');
-    dom.btnSubmitMedia = document.getElementById('btn-submit-media');
-    dom.btnCloseMediaModal = document.getElementById('btn-close-media-modal');
-    dom.mediaListContainer = document.getElementById('media-list-container');
-
-    // Modal de Resultados (V9.3 / V10)
-    dom.resultsModal = document.getElementById('results-modal');
-    dom.resultsModalOverlay = document.getElementById('results-modal-overlay');
-    dom.resultsModalTitle = document.getElementById('results-modal-title');
-    dom.resultsModalFilters = document.getElementById('results-modal-filters');
-    dom.resultsModalFilterName = document.getElementById('results-modal-filter-name');
-    dom.resultsModalContent = document.getElementById('results-modal-content');
-    dom.btnCloseResultsModal = document.getElementById('btn-close-results-modal');
-
-    // Modal de Comentários (Corrida) (V9.2)
-    dom.raceCommentsModal = document.getElementById('race-comments-modal');
-    dom.raceCommentsModalOverlay = document.getElementById('race-comments-modal-overlay');
-    dom.raceCommentsModalTitle = document.getElementById('race-comments-modal-title');
-    dom.raceCommentsList = document.getElementById('race-comments-list');
-    dom.raceCommentsForm = document.getElementById('race-comments-form');
-    dom.raceCommentText = document.getElementById('race-comment-text');
-    dom.raceCommentRaceId = document.getElementById('race-comment-race-id');
-    dom.raceCommentOwnerUid = document.getElementById('race-comment-owner-uid');
-    dom.btnSubmitRaceComment = document.getElementById('btn-submit-race-comment');
-    dom.btnCloseRaceCommentsModal = document.getElementById('btn-close-race-comments-modal');
-
-    // Modal de Likes (Corrida) (V9.2)
-    dom.raceLikesModal = document.getElementById('race-likes-modal');
-    dom.raceLikesModalOverlay = document.getElementById('race-likes-modal-overlay');
-    dom.raceLikesModalTitle = document.getElementById('race-likes-modal-title');
-    dom.raceLikesList = document.getElementById('race-likes-list');
-    dom.btnCloseRaceLikesModal = document.getElementById('btn-close-race-likes-modal');
-
-    // Lightbox (V8)
-    dom.lightbox = document.getElementById('lightbox');
-    dom.lightboxOverlay = document.getElementById('lightbox-overlay');
-    dom.lightboxImage = document.getElementById('lightbox-image');
-    dom.lightboxCaption = document.getElementById('lightbox-caption');
-    dom.lightboxClose = document.getElementById('lightbox-close');
-    dom.lightboxPrev = document.getElementById('lightbox-prev');
-    dom.lightboxNext = document.getElementById('lightbox-next');
-
-    // Filtros de Histórico
-    dom.filterYear = document.getElementById('filter-year');
-    dom.filterStatus = document.getElementById('filter-status');
-    dom.filterRunner = document.getElementById('filter-runner');
-    dom.historyTotal = document.getElementById('history-total');
-
-    // Recolher/Expandir (V13)
-    dom.toggleHistoryBtn = document.getElementById('toggle-history-btn');
-    dom.toggleHistoryContent = document.getElementById('history-content-collapsible');
-    dom.toggleCommentsBtn = document.getElementById('toggle-comments-btn');
-    dom.toggleCommentsContent = document.getElementById('comments-content-collapsible');
-}
-
-/**
- * (V10 - CORRIGIDO)
- * Inicializa o Firebase.
- * Verifica a existência da variável de configuração antes de inicializar.
- */
-function initializeFirebase() {
-    // V10: Garante que o config.js foi carregado antes de tentar inicializar
-    if (typeof FIREBASE_CONFIG === "undefined" || !FIREBASE_CONFIG) {
-        console.error("Erro fatal: FIREBASE_CONFIG não foi definido.");
-        console.error("Verifique se o arquivo 'js/config.js' está sendo carregado corretamente no 'index.html' e se a variável FIREBASE_CONFIG está preenchida.");
-        
-        // Exibe erro para o usuário
-        dom.appLoading.innerHTML = 'Erro crítico de configuração. Contate o administrador. (FIREBASE_CONFIG not found)';
-        dom.appLoading.classList.remove('hidden');
-        dom.loginOrPublicView.classList.add('hidden'); // Esconde o resto
-        return; // Interrompe a execução
-    }
-
-    try {
-        firebase.initializeApp(FIREBASE_CONFIG);
-        
-        db = firebase.database();
-        auth = firebase.auth();
-        functions = firebase.functions();
-        
-        console.log("Firebase Inicializado com sucesso.");
-
-        // Inicia o listener de autenticação
-        setupAuthListener();
-    } catch (e) {
-        console.error("Erro fatal ao inicializar o Firebase: ", e);
-        dom.appLoading.innerHTML = `Erro fatal na inicialização: ${e.message}. Verifique o console.`;
-    }
-}
-
-
-/**
- * Listener Principal de Autenticação
- * Controla o fluxo da aplicação (logado vs. deslogado)
- */
-function setupAuthListener() {
-    auth.onAuthStateChanged((user) => {
-        dom.appLoading.classList.add('hidden'); // Esconde o loading
-        
-        if (user) {
-            // --- USUÁRIO LOGADO ---
-            appState.authUserId = user.uid;
-            
-            // 1. Verifica se é Admin
-            db.ref(`/admins/${user.uid}`).once('value', (adminSnapshot) => {
-                appState.isAdmin = adminSnapshot.exists() && adminSnapshot.val() === true;
-
-                // 2. Verifica se está APROVADO
-                db.ref(`/approvedUsers/${user.uid}`).once('value', (approvedSnapshot) => {
-                    
-                    if (appState.isAdmin || approvedSnapshot.exists()) {
-                        // --- CASO 1: APROVADO ou ADMIN ---
-                        console.log("Usuário Aprovado ou Admin.");
-                        
-                        // Se for Admin, inicializa o painel de admin
-                        if (appState.isAdmin) {
-                            if (typeof initializeAdminPanel === "function") {
-                                initializeAdminPanel(appState.authUserId, db);
-                            } else {
-                                console.error("admin-logic.js não foi carregado.");
-                            }
-                        }
-                        
-                        // Carrega o dashboard pessoal
-                        loadUserProfile(user.uid, true);
-                        showView('dashboard');
-                        
-                    } else {
-                        // --- CASO 2: NÃO APROVADO ---
-                        // 3. Verifica se está PENDENTE
-                        db.ref(`/pendingApprovals/${user.uid}`).once('value', (pendingSnapshot) => {
-                            if (pendingSnapshot.exists()) {
-                                // --- CASO 2a: PENDENTE ---
-                                console.log("Usuário Pendente. Exibindo 'pendingView'.");
-                                showView('pending');
-                            } else {
-                                // --- CASO 2b: REJEITADO/EXCLUÍDO ---
-                                console.log("Usuário Rejeitado ou não encontrado. Exibindo 'rejectedView'.");
-                                dom.rejectedEmailText.textContent = user.email;
-                                showView('rejected');
-                            }
-                        });
-                    }
-                });
-            }, (error) => {
-                // --- CASO 3: ERRO (Regras de Segurança?) ---
-                console.error("Erro ao verificar status de admin/aprovação: ", error);
-                if (error.code === "PERMISSION_DENIED") {
-                    console.error("VERIFIQUE AS REGRAS DE LEITURA EM /admins/ e /approvedUsers/");
-                }
-                alert("Erro de configuração. Contate o administrador.");
-                signOutUser();
-            });
-            
-        } else {
-            // --- USUÁRIO DESLOGADO ---
-            console.log("Usuário deslogado. Exibindo 'loginOrPublicView'.");
-            appState.authUserId = null;
-            appState.isAdmin = false;
-            
-            // Carrega os dados públicos (Corridas, Resultados, Perfis)
-            loadPublicData();
-            
-            showView('loginOrPublicView');
-        }
-    });
-}
-
-// ==========================================
-// SEÇÃO 1: FUNÇÕES DE VIEW E AUTENTICAÇÃO
-// ==========================================
-
-// Gerenciador de troca de Views
-function showView(viewToShow) {
-    const views = [
-        dom.loginOrPublicView, dom.loginView, dom.signupView,
-        dom.dashboardView, dom.publicListView, dom.pendingView, dom.rejectedView
-    ];
-    
-    // Esconde todas as vistas
-    views.forEach(view => view.classList.add('hidden'));
-
-    // Mostra a vista principal (Login/Public ou Dashboard)
-    if (viewToShow === 'loginOrPublicView') {
-        dom.loginOrPublicView.classList.remove('hidden');
-        showViewPublicContent('copaAlcer'); // V10: Mostra Copa Alcer por padrão
-        
-    } else if (viewToShow === 'dashboard') {
-        dom.dashboardView.classList.remove('hidden');
-        dom.header.classList.remove('hidden'); // Mostra o header
-        
-    } else if (viewToShow === 'publicList') {
-        dom.publicListView.classList.remove('hidden');
-        dom.header.classList.remove('hidden'); // Mostra o header
-        
-    } else if (viewToShow === 'pending') {
-        dom.pendingView.classList.remove('hidden');
-        
-    } else if (viewToShow === 'rejected') {
-        dom.rejectedView.classList.remove('hidden');
-        
-    } else if (viewToShow === 'login') {
-        dom.loginOrPublicView.classList.add('hidden');
-        dom.loginView.classList.remove('hidden');
-        dom.loginTitle.textContent = "Login";
-        
-    } else if (viewToShow === 'signup') {
-        dom.loginOrPublicView.classList.add('hidden');
-        dom.signupView.classList.remove('hidden');
-    }
-}
-
-// Resetar sub-views específicas
-function showDashboardContent(contentId) {
-    // Esconde todas as seções
-    [dom.profileContentSection, dom.profileCommentsSection, dom.historyContent, dom.statsContent, dom.mediaContent].forEach(el => el.classList.add('hidden'));
-    // Remove a classe 'active' de todos os botões
-    [dom.profileContentBtn, dom.profileCommentsBtn, dom.historyBtn, dom.statsBtn, dom.mediaBtn].forEach(btn => btn.classList.remove('active'));
-
-    // Mostra a seção e ativa o botão correspondente
-    if (contentId === 'profile') {
-        dom.profileContentSection.classList.remove('hidden');
-        dom.profileContentBtn.classList.add('active');
-    } else if (contentId === 'comments') {
-        dom.profileCommentsSection.classList.remove('hidden');
-        dom.profileCommentsBtn.classList.add('active');
-    } else if (contentId === 'history') {
-        dom.historyContent.classList.remove('hidden');
-        dom.historyBtn.classList.add('active');
-    } else if (contentId === 'stats') {
-        dom.statsContent.classList.remove('hidden');
-        dom.statsBtn.classList.add('active');
-    } else if (contentId === 'media') {
-        dom.mediaContent.classList.remove('hidden');
-        dom.mediaBtn.classList.add('active');
-    }
-}
-
-// V10: Controla o conteúdo público (Resultados, Ranking, Calendário)
-function showViewPublicContent(contentId) {
-    // Esconde todos os containers
-    dom.publicContentContainer.innerHTML = ''; // Limpa
-    
-    // Remove a classe 'active' de todos os botões de filtro
-    const filterButtons = dom.publicContentFilters.querySelectorAll('.button');
-    filterButtons.forEach(btn => btn.classList.remove('active'));
-
-    // Mostra o conteúdo e ativa o botão correspondente
-    if (contentId === 'ranking') {
-        dom.publicContentTitle.textContent = 'Ranking Copa Alcer';
-        dom.btnShowRanking.classList.add('active');
-        renderRanking(appState.rankingCopa);
-        
-    } else if (contentId === 'copaAlcer') {
-        dom.publicContentTitle.textContent = 'Calendário Copa Alcer';
-        dom.btnShowCopaAlcer.classList.add('active');
-        renderPublicCalendar(appState.allRaces.copaAlcer, 'Calendário Copa Alcer');
-        
-    } else if (contentId === 'geral') {
-        dom.publicContentTitle.textContent = 'Calendário Geral';
-        dom.btnShowGeral.classList.add('active');
-        renderPublicCalendar(appState.allRaces.geral, 'Calendário Geral');
-    }
-}
-
-// Reseta o formulário de login (usado ao voltar)
-function showLoginForm() {
-    dom.loginError.textContent = '';
-    dom.loginForm.reset();
-    showView('login');
-}
-
-// Reseta o formulário de signup (usado ao voltar)
-function showSignupForm() {
-    dom.signupError.textContent = '';
-    dom.signupForm.reset();
-    showView('signup');
-}
-
-// Handler para o formulário de Login
-function handleLogin(e) {
-    e.preventDefault();
-    const email = dom.loginEmail.value;
-    const password = dom.loginPassword.value;
-    
-    setLoadingState(dom.btnLoginSubmit, true, "Entrando...");
-
-    auth.signInWithEmailAndPassword(email, password)
-        .then((userCredential) => {
-            // Sucesso! O onAuthStateChanged vai cuidar do resto.
-            console.log("Login bem-sucedido.");
-            setLoadingState(dom.btnLoginSubmit, false, "Login");
-            dom.loginForm.reset();
-            dom.loginError.textContent = '';
-        })
-        .catch((error) => {
-            // Falha
-            console.error("Erro no login: ", error.code);
-            let msg = "Erro desconhecido.";
-            if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-                msg = "E-mail ou senha incorretos.";
-            } else if (error.code === 'auth/invalid-email') {
-                msg = "Formato de e-mail inválido.";
-            }
-            dom.loginError.textContent = msg;
-            setLoadingState(dom.btnLoginSubmit, false, "Login");
-        });
-}
-
-// Handler para o formulário de Signup
-function handleSignUp(e) {
-    e.preventDefault();
-    const email = dom.signupEmail.value;
-    const password = dom.signupPassword.value;
-    const runner1Name = dom.signupRunner1Name.value.trim();
-    const runner2Name = dom.signupRunner2Name.value.trim();
-    const teamName = dom.signupTeamName.value.trim();
-
-    if (runner1Name.length < 3) {
-        dom.signupError.textContent = "O Nome do Corredor 1 é obrigatório.";
-        return;
-    }
-    
-    setLoadingState(dom.btnSignupSubmit, true, "Registrando...");
-
-    auth.createUserWithEmailAndPassword(email, password)
-        .then((userCredential) => {
-            // Usuário criado. Agora, salva a solicitação de aprovação.
-            const uid = userCredential.user.uid;
-            
-            const pendingData = {
-                email: email,
-                runner1Name: runner1Name
-            };
-            // Adiciona campos opcionais apenas se preenchidos
-            if (runner2Name) pendingData.runner2Name = runner2Name;
-            if (teamName) pendingData.teamName = teamName;
-
-            return db.ref(`pendingApprovals/${uid}`).set(pendingData);
-        })
-        .then(() => {
-            // Solicitação salva. O onAuthStateChanged vai mostrar o 'pendingView'.
-            console.log("Usuário registrado e aguardando aprovação.");
-            setLoadingState(dom.btnSignupSubmit, false, "Registrar");
-            dom.signupForm.reset();
-            dom.signupError.textContent = '';
-            // Não precisa fazer signOut, o listener vai pegar o estado "pendente"
-        })
-        .catch((error) => {
-            // Falha no Signup
-            console.error("Erro no signup: ", error.code);
-            let msg = "Erro desconhecido. Tente novamente.";
-            if (error.code === 'auth/email-already-in-use') {
-                msg = "Este e-mail já está em uso.";
-            } else if (error.code === 'auth/weak-password') {
-                msg = "A senha deve ter pelo menos 6 caracteres.";
-            } else if (error.code === 'auth/invalid-email') {
-                msg = "Formato de e-mail inválido.";
-            }
-            dom.signupError.textContent = msg;
-            setLoadingState(dom.btnSignupSubmit, false, "Registrar");
-        });
-}
-
-// Desloga o usuário
-function signOutUser() {
-    console.log("Deslogando usuário...");
-    cleanupListeners(); // Limpa listeners dinâmicos
-    auth.signOut();
-    // O onAuthStateChanged vai cuidar de mostrar a tela de login/público
-}
-
-// ==========================================
-// SEÇÃO 2: CARREGAMENTO DE DADOS (PÚBLICO E PERFIL)
-// ==========================================
-
-// Carrega todos os dados públicos (para view deslogada)
-function loadPublicData() {
-    console.log("Carregando dados públicos...");
-    
-    // Carrega Perfis Públicos
-    db.ref('users').once('value', (snapshot) => {
-        if (snapshot.exists()) {
-            renderPublicList(snapshot.val());
-        }
-    });
-    
-    // Carrega Corridas (Ambos Calendários)
-    db.ref('corridas').once('value', (snapshot) => {
-        if (snapshot.exists()) {
-            appState.allRaces = snapshot.val();
-            // V10: Renderiza o calendário padrão (Copa Alcer) ao carregar
-            showViewPublicContent('copaAlcer'); 
-        } else {
-            console.warn("Nenhum dado de corrida encontrado.");
-        }
-    });
-
-    // Carrega Resultados (V10)
-    db.ref('resultadosEtapas').once('value', (snapshot) => {
-        if (snapshot.exists()) {
-            appState.allResultadosEtapas = snapshot.val();
-        }
-    });
-    
-    // Carrega Ranking (V10)
-    db.ref('rankingCopaAlcer').once('value', (snapshot) => {
-        if (snapshot.exists()) {
-            appState.rankingCopa = snapshot.val();
-        }
-    });
-}
-
-// Carrega dados de um perfil de usuário específico
-function loadUserProfile(uid, isAuthUser = false) {
-    // Se o perfil que estamos carregando é o mesmo, não recarrega
-    if (appState.currentViewingUid === uid && !isAuthUser) { // isAuthUser força recarga do próprio dashboard
-        showView('dashboard');
-        return;
-    }
-
-    console.log(`Carregando perfil para UID: ${uid}`);
-    appState.currentViewingUid = uid; // Define o perfil que estamos vendo
-    
-    // Limpa listeners antigos para evitar duplicação
-    cleanupListeners();
-    
-    // Define quem pode editar/adicionar
-    const canEdit = (appState.authUserId === uid) || appState.isAdmin;
-    
-    // Mostra/Esconde botões de admin/dono
-    toggleElement(dom.btnEditProfile, canEdit);
-    toggleElement(dom.btnAddRace, canEdit);
-    toggleElement(dom.btnAddMedia, canEdit);
-    toggleElement(dom.profileCommentsForm, appState.authUserId); // V9.2: Só mostra form de mural se logado
-    
-    // Define os botões de navegação
-    if (appState.authUserId && appState.authUserId !== uid) {
-        // Vendo o perfil de outro
-        dom.btnBackToMyDashboard.classList.remove('hidden');
-        dom.btnBackToPublic.classList.add('hidden');
-    } else if (appState.authUserId && appState.authUserId === uid) {
-        // Vendo o meu próprio perfil
-        dom.btnBackToMyDashboard.classList.add('hidden');
-        dom.btnBackToPublic.classList.remove('hidden');
-    } else {
-        // Deslogado vendo perfil
-        dom.btnBackToMyDashboard.classList.add('hidden');
-        dom.btnBackToPublic.classList.add('hidden');
-    }
-
-    // --- Carrega Dados do Perfil ---
-    const profileRef = db.ref(`/users/${uid}/profile`);
-    profileRef.on('value', (snapshot) => {
-        if (!snapshot.exists()) {
-            console.error("Perfil não encontrado para UID:", uid);
-            if (isAuthUser) signOutUser(); // Se o próprio usuário não tem perfil, desloga
-            return;
-        }
-        const profile = snapshot.val();
-        appState.profileData = profile; // Salva no cache
-        
-        // Define a flag global
-        appState.hasRunner2 = !!(profile.runner2Name && profile.runner2Name.length > 0);
-        
-        renderProfile(profile);
-        
-        // Atualiza os filtros de histórico (Runner 2)
-        toggleElement(dom.filterRunner.parentElement, appState.hasRunner2);
-
-        // Carrega o histórico (depende do profile.races)
-        const racesRef = db.ref(`/users/${uid}/races`);
-        appState.currentRaceLikes = setupRaceDataListener(racesRef, 'history', (races) => {
-            renderHistory(races);
-            renderStats(races, profile);
-        });
-
-    }, (error) => {
-        console.error("Erro ao carregar perfil:", error);
-    });
-
-    // --- Carrega Mídias ---
-    const mediaRef = db.ref(`/users/${uid}/media`);
-    mediaRef.on('value', (snapshot) => {
-        renderMedia(snapshot.val());
-    });
-    
-    // --- Carrega Comentários do Mural (V9.2) ---
-    const commentsRef = db.ref(`/profileComments/${uid}`).orderByChild('timestamp').limitToLast(50);
-    appState.currentRaceComments = setupRaceDataListener(commentsRef, 'comments', (comments) => {
-        renderProfileComments(comments);
-    });
-
-    // Mostra a view do dashboard
-    showView('dashboard');
-    showDashboardContent('profile'); // Mostra a aba de perfil por padrão
-    
-    // Atualiza o Header
-    updateHeader(profile.runner1Name, profile.runner2Name, profile.teamName, profile.profilePictureUrl);
-}
-
-// Carrega a lista pública de perfis
-function renderPublicList(profiles) {
-    if (!dom.publicListContainer) return;
-    dom.publicListContainer.innerHTML = '';
-    
-    if (!profiles || Object.keys(profiles).length === 0) {
-        dom.publicListContainer.innerHTML = '<p>Nenhum corredor encontrado.</p>';
-        return;
-    }
-    
-    const fragment = document.createDocumentFragment();
-    
-    // Filtra e ordena
-    const filteredProfiles = Object.entries(profiles)
-        .filter(([uid, data]) => data.profile) // Garante que o perfil existe
-        .sort((a, b) => {
-            // Ordena por nome (Runner1 ou Equipe)
-            const nameA = a[1].profile.runner1Name || a[1].profile.teamName || '';
-            const nameB = b[1].profile.runner1Name || b[1].profile.teamName || '';
-            return nameA.localeCompare(nameB);
-        });
-        
-    filteredProfiles.forEach(([uid, data]) => {
-        const profile = data.profile;
-        const div = document.createElement('div');
-        div.className = 'public-list-item';
-        div.dataset.uid = uid; // Para o click listener
-        
-        let displayName = profile.runner1Name || 'Usuário';
-        if (profile.runner2Name) {
-            displayName += ` & ${profile.runner2Name}`;
-        }
-        
-        div.innerHTML = `
-            <img src="${profile.profilePictureUrl || 'icons/icon-192x192.png'}" alt="Foto do perfil" class="profile-pic-small">
-            <div class="public-list-info">
-                <strong>${displayName}</strong>
-                <span>${profile.teamName || 'Equipe não informada'}</span>
-            </div>
-        `;
-        fragment.appendChild(div);
-    });
-    
-    dom.publicListContainer.appendChild(fragment);
-}
-
-// ==========================================
-// SEÇÃO 2B: RENDERIZAÇÃO DO DASHBOARD (PERFIL)
-// ==========================================
-
-// Atualiza o Header
-function updateHeader(r1Name, r2Name, team, picUrl) {
-    dom.headerProfilePicture.src = picUrl || 'icons/icon-192x192.png';
-    
-    let displayName = r1Name || '';
-    let subDisplayName = team || '';
-
-    if (r2Name) {
-        const name1Short = r1Name.split(' ')[0];
-        const name2Short = r2Name.split(' ')[0];
-        displayName = `${name1Short} & ${name2Short}`;
-    }
-    
-    dom.headerProfileName.innerHTML = `${displayName} <span>${subDisplayName}</span>`;
-}
-
-
-// Renderiza a seção de Perfil
-function renderProfile(profile) {
-    if (!dom.profileContentSection) return;
-    
-    dom.userEmail.textContent = `Logado como: ${auth.currentUser.email}`;
-    
-    // Atualiza nomes no modal de edição
-    dom.profileRunner1Name.value = profile.runner1Name || '';
-    dom.profileRunner2Name.value = profile.runner2Name || '';
-    dom.profileTeamName.value = profile.teamName || '';
-    dom.profileBio.value = profile.bio || '';
-    dom.profileLocation.value = profile.location || '';
-    dom.profileBirthdateEdit.value = profile.birthdate || '';
-    dom.profilePictureUrl.value = profile.profilePictureUrl || '';
-
-    // Define visibilidade dos campos R2
-    toggleElement(dom.profileRunner2Name.parentElement, appState.hasRunner2);
-    toggleElement(dom.runner2Fields, appState.hasRunner2);
-
-    // Atualiza nomes globais para os botões
-    RUNNER_1_PROFILE.name = profile.runner1Name || 'Corredor 1';
-    RUNNER_1_PROFILE.nameShort = profile.runner1Name ? profile.runner1Name.split(' ')[0] : 'Cor1';
-    
-    if (appState.hasRunner2) {
-        RUNNER_2_PROFILE.name = profile.runner2Name || 'Corredor 2';
-        RUNNER_2_PROFILE.nameShort = profile.runner2Name ? profile.runner2Name.split(' ')[0] : 'Cor2';
-    }
-
-    // Atualiza os labels dos botões de status (V3.7)
-    updateRunnerLabelsAndForms();
-}
-
-// Renderiza a seção de Histórico
-function renderHistory(races) {
-    if (!dom.historyContent) return;
-
-    // Limpa o conteúdo
-    dom.historyContent.innerHTML = '';
-    
-    // Aplica filtros
-    const filteredRaces = filterRaces(races);
-
-    // Ordena por data (mais nova primeiro)
-    const sortedRaces = Object.entries(filteredRaces).sort((a, b) => {
-        const dateA = new Date(a[1].data);
-        const dateB = new Date(b[1].data);
-        return dateB - dateA;
-    });
-
-    // Atualiza total
-    const total = sortedRaces.length;
-    dom.historyTotal.textContent = `${total} ${total === 1 ? 'corrida' : 'corridas'}`;
-
-    if (total === 0) {
-        dom.historyContent.innerHTML = '<li class="history-item-empty">Nenhuma corrida registrada encontrada para este filtro.</li>';
-        return;
-    }
-
-    const fragment = document.createDocumentFragment();
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // Zera a hora para comparação
-
-    sortedRaces.forEach(([raceId, race]) => {
-        const li = document.createElement('li');
-        li.className = 'history-item';
-        li.dataset.raceId = raceId; // Para o click listener
-        
-        // Verifica se a corrida é passada
-        const raceDate = new Date(race.data + 'T12:00:00Z');
-        const isPastRace = raceDate < today;
-        if (isPastRace) {
-            li.classList.add('past-race');
-        }
-
-        // --- Data ---
-        const [year, month, day] = race.data.split('-');
-        const formattedDate = `${day}/${month}`;
-        
-        // --- Status R1 ---
-        const r1_status = race.r1 ? race.r1.status : STATUS_PLANNED;
-        const r1_time = race.r1 ? (race.r1.time || '?') : '';
-        let r1_html = '';
-        if (r1_status === STATUS_COMPLETED) {
-            r1_html = `<span class="status-dot completed" title="${RUNNER_1_PROFILE.name}: Completou"></span> ${RUNNER_1_PROFILE.nameShort}: <strong>${r1_time}</strong>`;
-        } else if (r1_status === STATUS_SKIPPED) {
-            r1_html = `<span class="status-dot skipped" title="${RUNNER_1_PROFILE.name}: Não correu"></span> ${RUNNER_1_PROFILE.nameShort}: ---`;
-        } else {
-            r1_html = `<span class="status-dot planned" title="${RUNNER_1_PROFILE.name}: Planejada"></span> ${RUNNER_1_PROFILE.nameShort}: Planejada`;
-        }
-        
-        // --- Status R2 ---
-        let r2_html = '';
-        if (appState.hasRunner2) {
-            const r2_status = race.r2 ? race.r2.status : STATUS_PLANNED;
-            const r2_time = race.r2 ? (race.r2.time || '?') : '';
-            if (r2_status === STATUS_COMPLETED) {
-                r2_html = `<span class="status-dot completed" title="${RUNNER_2_PROFILE.name}: Completou"></span> ${RUNNER_2_PROFILE.nameShort}: <strong>${r2_time}</strong>`;
-            } else if (r2_status === STATUS_SKIPPED) {
-                r2_html = `<span class="status-dot skipped" title="${RUNNER_2_PROFILE.name}: Não correu"></span> ${RUNNER_2_PROFILE.nameShort}: ---`;
-            } else {
-                r2_html = `<span class="status-dot planned" title="${RUNNER_2_PROFILE.name}: Planejada"></span> ${RUNNER_2_PROFILE.nameShort}: Planejada`;
-            }
-        }
-        
-        // --- Contagem de Mídias, Likes, Comentários ---
-        const mediaCount = race.mediaCount || 0;
-        const likeCount = race.likeCount || 0;
-        const commentCount = race.commentCount || 0;
-        
-        // Define UID para "Curtir" (V9.2)
-        const likeButtonUid = appState.authUserId ? (appState.profileData.profilePictureUrl || 'icons/icon-192x192.png') : '';
-        const likeButtonName = appState.authUserId ? (appState.profileData.runner1Name) : '';
-
-        // Botão de editar
-        const canEdit = (appState.authUserId === appState.currentViewingUid) || appState.isAdmin;
-        const editButton = canEdit ? `<button class="icon-button btn-edit-race" data-race-id="${raceId}"><i class='bx bx-pencil'></i></button>` : '';
-
-        // --- Botão de Resultados (V9.3) ---
-        // Verifica se existe resultado para essa corrida no cache
-        const hasResults = appState.allResultadosEtapas[raceId];
-        const resultsButton = hasResults ? 
-            `<a href="#" class="v2-btn-subscribe results-button" data-race-id="${raceId}" data-race-name="${race.nome}" target="_blank" rel="noopener">Ver Classificação</a>`
-            : (race.link ? `<a href="${race.link}" class="v2-btn-subscribe" target="_blank" rel="noopener">Site Oficial</a>` : '');
-
-        li.innerHTML = `
-            <div class="v2-calendar-date">
-                <span class="day">${day}</span>
-                <span class="month">${getMonthName(month)}</span>
-                <span class="year">${year}</span>
-            </div>
-            <div class="v2-calendar-info">
-                <strong>${race.nome}</strong>
-                <span>${race.cidade} | ${race.distancia}</span>
-                <div class="v2-runner-status">
-                    ${r1_html}
-                    ${r2_html}
-                </div>
-            </div>
-            <div class="v-calendar-action">
-                ${resultsButton}
-                <div class="history-item-media">
-                    ${editButton}
-                    <button class="icon-button btn-add-media-direct" data-race-id="${raceId}" data-race-name="${race.nome}" title="Adicionar Mídia">
-                        <i class='bx bx-camera'></i>
-                        <span class="media-count">${mediaCount}</span>
-                    </button>
-                    <button class="icon-button btn-show-comments" data-race-id="${raceId}" data-race-name="${race.nome}" title="Comentários">
-                        <i class='bx bx-comment'></i>
-                        <span class="comment-count">${commentCount}</span>
-                    </button>
-                    <button class="icon-button btn-like-race" data-race-id="${raceId}" data-owner-uid="${appState.currentViewingUid}" 
-                            data-liker-pic="${likeButtonUid}" data-liker-name="${likeButtonName}" title="Curtir">
-                        <i class='bx bx-heart'></i>
-                        <span class="like-count" id="like-count-${raceId}">${likeCount}</span>
-                    </button>
-                </div>
-            </div>
-        `;
-        fragment.appendChild(li);
-    });
-
-    dom.historyContent.appendChild(fragment);
-}
-
-// Renderiza a seção de Estatísticas
-function renderStats(races, profile) {
-    if (!dom.statsContent) return;
-
-    let totalKm = 0;
-    let totalRaces = 0;
-    let totalKmR1 = 0;
-    let totalRacesR1 = 0;
-    let totalKmR2 = 0;
-    let totalRacesR2 = 0;
-    const years = new Set();
-    
-    Object.values(races).forEach(race => {
-        years.add(race.data.substring(0, 4)); // Adiciona o ano (YYYY)
-        
-        // Tenta converter a distância para número (limpando 'km', 'K', e trocando vírgula)
-        const distanceStr = (race.distancia || '0').replace(/km|k/i, '').replace(',', '.').trim();
-        const distance = parseFloat(distanceStr);
-        
-        if (isNaN(distance)) return; // Pula se a distância não for válida
-
-        // V3.7: Contabiliza por corredor
-        const r1_match = race.r1 && race.r1.status === STATUS_COMPLETED;
-        const r2_match = appState.hasRunner2 && race.r2 && race.r2.status === STATUS_COMPLETED;
-
-        if (race.juntos) {
-            // Se correram juntos, soma a distância 1x para ambos
-            if (r1_match || r2_match) { // Se pelo menos um completou
-                totalRaces++;
-                totalKm += distance;
-                if (r1_match) totalRacesR1++;
-                if (r2_match) totalRacesR2++;
-            }
-        } else {
-            // Se correram separados
-            if (r1_match) {
-                totalRaces++;
-                totalRacesR1++;
-                totalKm += distance;
-            }
-            if (r2_match) {
-                totalRaces++;
-                totalRacesR2++;
-                totalKm += distance;
-            }
-        }
-    });
-
-    // V3.7: Formata a saída
-    let html = `
-        <div class="stat-card">
-            <h3>Total (Equipe)</h3>
-            <p><strong>${totalRaces}</strong> corridas</p>
-            <p><strong>${totalKm.toFixed(1).replace('.', ',')}</strong> km</p>
-        </div>
-        <div class="stat-card">
-            <h3>${RUNNER_1_PROFILE.name}</h3>
-            <p><strong>${totalRacesR1}</strong> corridas</p>
-        </div>
-    `;
-    
-    if (appState.hasRunner2) {
-        html += `
-            <div class="stat-card">
-                <h3>${RUNNER_2_PROFILE.name}</h3>
-                <p><strong>${totalRacesR2}</strong> corridas</p>
-            </div>
-        `;
-    }
-
-    dom.statsContent.innerHTML = html;
-}
-
-// Renderiza a seção de Mídia (Fotos/Vídeos)
-function renderMedia(mediaData) {
-    if (!dom.mediaContent) return;
-
-    dom.mediaContent.innerHTML = '';
-    
-    if (!mediaData || Object.keys(mediaData).length === 0) {
-        dom.mediaContent.innerHTML = '<p class="media-empty-msg">Nenhuma foto ou vídeo adicionado ainda.</p>';
-        return;
-    }
-
-    // V9.4: Ordena pela data de upload (mais nova primeiro)
-    const sortedMedia = Object.entries(mediaData).sort((a, b) => {
-        const timeA = a[1].uploadedAt || 0;
-        const timeB = b[1].uploadedAt || 0;
-        return timeB - timeA;
-    });
-
-    const fragment = document.createDocumentFragment();
-    const lightboxImages = []; // Array para o Lightbox
-
-    sortedMedia.forEach(([mediaId, media], index) => {
-        const div = document.createElement('div');
-        div.className = 'media-thumbnail';
-        
-        // Adiciona dados para o Lightbox
-        div.dataset.index = index; 
-        lightboxImages.push({
-            src: media.url,
-            caption: media.name || 'Mídia da corrida'
-        });
-
-        const isOwner = (appState.authUserId === appState.currentViewingUid) || appState.isAdmin;
-        
-        // V13: ID de Exclusão (mediaId)
-        const deleteButton = isOwner ? 
-            `<button class="media-delete-btn" data-media-id="${mediaId}" data-race-id="${media.raceId}" title="Excluir Mídia"><i class='bx bx-trash'></i></button>` 
-            : '';
-
-        div.innerHTML = `
-            <img src="${media.thumbnail || media.url}" alt="${media.name || 'Mídia'}">
-            <div class="media-thumbnail-overlay">
-                <i class='bx bx-search-alt-2'></i>
-            </div>
-            ${deleteButton}
-        `;
-        fragment.appendChild(div);
-    });
-
-    dom.mediaContent.appendChild(fragment);
-    
-    // Salva o estado do lightbox
-    lightboxState.images = lightboxImages;
-}
-
-// ==========================================
-// SEÇÃO 2C: RENDERIZAÇÃO PÚBLICA (CALENDÁRIO / RESULTADOS V10)
-// ==========================================
-
-// Renderiza o Calendário Público (Copa ou Geral)
-function renderPublicCalendar(racesData, title) {
-    if (!dom.publicContentContainer) return;
-    dom.publicContentContainer.innerHTML = '';
-    
-    if (!racesData || Object.keys(racesData).length === 0) {
-        dom.publicContentContainer.innerHTML = `<div class="public-item-empty">Nenhuma corrida encontrada em "${title}".</div>`;
-        return;
-    }
-
-    const fragment = document.createDocumentFragment();
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    // Ordena por data (mais nova primeiro)
-    const sortedRaces = Object.entries(racesData).sort((a, b) => {
-        const dateA = new Date(a[1].data);
-        const dateB = new Date(b[1].data);
-        return dateB - dateA;
-    });
-
-    sortedRaces.forEach(([raceId, race]) => {
-        const div = document.createElement('div');
-        div.className = 'v2-calendar-item';
-        
-        const raceDate = new Date(race.data + 'T12:00:00Z');
-        if (raceDate < today) {
-            div.classList.add('past-race');
-        }
-
-        const [year, month, day] = race.data.split('-');
-        
-        // V10: Verifica se tem resultados
-        const hasResults = appState.allResultadosEtapas[raceId];
-        const resultsButton = hasResults ? 
-            `<a href="#" class="v2-btn-subscribe results-button" data-race-id="${raceId}" data-race-name="${race.nome}" target="_blank" rel="noopener">Ver Classificação</a>`
-            : (race.link ? `<a href="${race.link}" class="v2-btn-subscribe" target="_blank" rel="noopener">Site Oficial</a>` : '');
-
-        div.innerHTML = `
-            <div class="v2-calendar-date">
-                <span class="day">${day}</span>
-                <span class="month">${getMonthName(month)}</span>
-                <span class="year">${year}</span>
-            </div>
-            <div class="v2-calendar-info">
-                <strong>${race.nome}</strong>
-                <span>${race.cidade} | ${race.distancia}</span>
-            </div>
-            <div class="v-calendar-action">
-                ${resultsButton}
-            </div>
-        `;
-        fragment.appendChild(div);
-    });
-    
-    dom.publicContentContainer.appendChild(fragment);
-}
-
-/**
- * (V10 - CORRIGIDO)
- * Renderiza o modal de Resultados da Etapa (Classificação)
- */
-function renderResultadosEtapas(raceId, raceName) {
-    const resultsData = appState.allResultadosEtapas[raceId];
-    if (!resultsData) {
-        alert("Erro: Resultados não encontrados para esta corrida.");
-        return;
-    }
-    
-    dom.resultsModalTitle.textContent = `Resultados: ${raceName}`;
-    dom.resultsModalContent.innerHTML = ''; // Limpa
-    
-    const fragment = document.createDocumentFragment();
-    
-    // Ordena as categorias (Ex: "GERAL" primeiro, depois alfabético)
-    const sortedCategories = Object.keys(resultsData).sort((a, b) => {
-        if (a.toUpperCase() === 'GERAL') return -1;
-        if (b.toUpperCase() === 'GERAL') return 1;
-        return a.localeCompare(b);
-    });
-
-    // Itera por cada categoria (ex: "GERAL", "Feminino 30-39", etc.)
-    sortedCategories.forEach(categoryName => {
-        const atletas = resultsData[categoryName];
-        
-        const categoryDiv = document.createElement('div');
-        categoryDiv.className = 'v2-modal-category';
-        
-        let tableHtml = `
-            <h3 class="v2-modal-category-title">${categoryName}</h3>
-            <table class="v2-ranking-table">
-                <thead>
-                    <tr>
-                        <th>Pos.</th>
-                        <th>Atleta</th>
-                        <th>Equipe</th>
-                        <th>Tempo</th>
-                    </tr>
-                </thead>
-                <tbody>
-        `;
-        
-        // Itera sobre os atletas da categoria
-        atletas.forEach(atleta => {
-            // (V10) Usa as chaves corretas: placement, name, team, time
-            tableHtml += `
-                <tr>
-                    <td>${atleta.placement || '-'}</td>
-                    <td>${atleta.name || '-'}</td>
-                    <td>${atleta.team || '-'}</td>
-                    <td><strong>${atleta.time || '-'}</strong></td>
-                </tr>
-            `;
-        });
-        
-        tableHtml += '</tbody></table>';
-        categoryDiv.innerHTML = tableHtml;
-        fragment.appendChild(categoryDiv);
-    });
-    
-    dom.resultsModalContent.appendChild(fragment);
-    
-    // Mostra o Modal
-    dom.resultsModal.classList.remove('hidden');
-    dom.resultsModalOverlay.classList.remove('hidden');
-    dom.resultsModalFilterName.value = ''; // Limpa o filtro
-}
-
-// ==========================================
-// SEÇÃO 2D: RENDERIZAÇÃO PÚBLICA (RANKING COPA V10)
-// ==========================================
-
-// Renderiza o Ranking da Copa Alcer
-function renderRanking(rankingData) {
-    if (!dom.publicContentContainer) return;
-    dom.publicContentContainer.innerHTML = '';
-    
-    if (!rankingData || Object.keys(rankingData).length === 0) {
-        dom.publicContentContainer.innerHTML = `<div class="public-item-empty">Ranking ainda não disponível.</div>`;
-        return;
-    }
-    
-    const fragment = document.createDocumentFragment();
-
-    // Ordena as categorias (ex: "GERAL MASCULINO" primeiro, etc.)
-    const sortedCategories = Object.keys(rankingData).sort((a, b) => a.localeCompare(b));
-
-    // Itera por cada categoria
-    sortedCategories.forEach(categoryName => {
-        const atletas = rankingData[categoryName];
-        
-        const categoryDiv = document.createElement('div');
-        categoryDiv.className = 'v2-ranking-category'; // Estilo diferente do modal
-        
-        let tableHtml = `
-            <h3 class="v2-ranking-category-title">${categoryName}</h3>
-            <table class="v2-ranking-table">
-                <thead>
-                    <tr>
-                        <th>Pos.</th>
-                        <th>Atleta</th>
-                        <th>Equipe</th>
-                        <th>Et.1</th>
-                        <th>Et.2</th>
-                        <th>Et.3</th>
-                        <th>Et.4</th>
-                        <th>Total</th>
-                    </tr>
-                </thead>
-                <tbody>
-        `;
-        
-        // Itera sobre os atletas (já ordenados do JSON)
-        atletas.forEach(atleta => {
-            tableHtml += `
-                <tr>
-                    <td>${atleta.pos}</td>
-                    <td>${atleta.atleta}</td>
-                    <td>${atleta.equipe || '-'}</td>
-                    <td>${atleta.et1 || 0}</td>
-                    <td>${atleta.et2 || 0}</td>
-                    <td>${atleta.et3 || 0}</td>
-                    <td>${atleta.et4 || 0}</td>
-                    <td><strong>${atleta.total || 0}</strong></td>
-                </tr>
-            `;
-        });
-        
-        tableHtml += '</tbody></table>';
-        categoryDiv.innerHTML = tableHtml;
-        fragment.appendChild(categoryDiv);
-    });
-    
-    dom.publicContentContainer.appendChild(fragment);
-}
-
-// ==========================================
-// SEÇÃO 3: CRUD (CORRIDAS E PERFIL)
-// ==========================================
-
-// Abre o Modal de Corrida (para Adicionar ou Editar)
-function openRaceModal(raceId = null, raceName = null, raceDate = null) {
-    // Limpa o formulário
-    dom.raceFormModal.reset();
-    dom.raceId.value = ''; // Limpa o ID oculto
-    updateRunnerLabelsAndForms(); // Garante que os labels estão corretos
-    toggleElement(dom.btnDeleteRace, false); // Esconde o botão de excluir
-    
-    if (raceId) {
-        // --- MODO EDIÇÃO ---
-        dom.raceModalTitle.textContent = "Editar Corrida";
-        dom.raceId.value = raceId;
-        toggleElement(dom.btnDeleteRace, true); // Mostra o botão de excluir
-        
-        // Busca os dados da corrida
-        db.ref(`/users/${appState.currentViewingUid}/races/${raceId}`).once('value', (snapshot) => {
-            if (snapshot.exists()) {
-                const race = snapshot.val();
-                // Preenche o formulário
-                dom.raceName.value = race.nome || '';
-                dom.raceDate.value = race.data || '';
-                dom.raceDistance.value = race.distancia || '';
-                dom.raceNotes.value = race.notas || '';
-                
-                // V3.7: Preenche dados dos corredores
-                if (race.r1) {
-                    dom.raceStatusRunner1.value = race.r1.status || STATUS_PLANNED;
-                    dom.raceTimeRunner1.value = race.r1.time || '';
-                }
-                if (appState.hasRunner2 && race.r2) {
-                    dom.raceStatusRunner2.value = race.r2.status || STATUS_PLANNED;
-                    dom.raceTimeRunner2.value = race.r2.time || '';
-                }
-                dom.juntosCheckbox.checked = race.juntos || false;
-            }
-        });
-        
-    } else {
-        // --- MODO ADIÇÃO ---
-        dom.raceModalTitle.textContent = "Adicionar Corrida";
-        // V9.5: Preenche dados se vier do calendário
-        if(raceName) dom.raceName.value = raceName;
-        if(raceDate) dom.raceDate.value = raceDate;
-    }
-    
-    dom.raceModal.classList.remove('hidden');
-    dom.raceModalOverlay.classList.remove('hidden');
-}
-
-// Fecha o Modal de Corrida
-function closeRaceModal() {
-    dom.raceModal.classList.add('hidden');
-    dom.raceModalOverlay.classList.add('hidden');
-}
-
-// Salva a Corrida (Create/Update)
-function handleRaceSave() {
-    const raceName = dom.raceName.value;
-    const raceDate = dom.raceDate.value;
-    
-    if (!raceName || !raceDate) {
-        alert("Nome da Corrida e Data são obrigatórios.");
-        return;
-    }
-    
-    let raceId = dom.raceId.value; // Pega o ID (se for edição)
-    const uid = appState.currentViewingUid;
-    
-    let dbRef;
-    if (raceId) {
-        // Update
-        dbRef = db.ref(`/users/${uid}/races/${raceId}`);
-    } else {
-        // Create (push gera novo ID)
-        dbRef = db.ref(`/users/${uid}/races`).push();
-        raceId = dbRef.key;
-    }
-    
-    const raceData = {
-        raceId: raceId, // Salva o ID dentro do objeto
-        nome: raceName,
-        data: raceDate,
-        distancia: dom.raceDistance.value,
-        notas: dom.raceNotes.value,
-        juntos: dom.juntosCheckbox.checked,
-        // V3.7: Dados dos corredores
-        r1: {
-            status: dom.raceStatusRunner1.value,
-            time: dom.raceTimeRunner1.value.trim()
-        }
-    };
-    
-    // Adiciona R2 apenas se o perfil tiver R2
-    if (appState.hasRunner2) {
-        raceData.r2 = {
-            status: dom.raceStatusRunner2.value,
-            time: dom.raceTimeRunner2.value.trim()
-        };
-    }
-
-    setLoadingState(dom.btnSaveRace, true, "Salvando...");
-    
-    dbRef.set(raceData)
-        .then(() => {
-            console.log("Corrida salva com sucesso.");
-            setLoadingState(dom.btnSaveRace, false, "Salvar");
-            closeRaceModal();
-        })
-        .catch((error) => {
-            console.error("Erro ao salvar corrida:", error);
-            alert("Erro ao salvar. Verifique o console.");
-            setLoadingState(dom.btnSaveRace, false, "Salvar");
-        });
-}
-
-// Exclui a Corrida
-function handleRaceDelete() {
-    const raceId = dom.raceId.value;
-    const uid = appState.currentViewingUid;
-    
-    if (!raceId || !uid) {
-        alert("Erro: ID da corrida ou do usuário não encontrado.");
-        return;
-    }
-    
-    if (!confirm("Tem certeza que deseja excluir esta corrida? Todas as mídias, likes e comentários associados também serão perdidos.")) {
-        return;
-    }
-    
-    setLoadingState(dom.btnDeleteRace, true, "Excluindo...");
-    
-    // V9.2: Exclusão em Múltiplos Nós (Atômica)
-    const updates = {};
-    updates[`/users/${uid}/races/${raceId}`] = null;
-    updates[`/raceMedia/${raceId}`] = null;
-    updates[`/raceComments/${raceId}`] = null;
-    updates[`/raceLikes/${raceId}`] = null;
-    
-    db.ref().update(updates)
-        .then(() => {
-            console.log("Corrida e dados associados excluídos.");
-            setLoadingState(dom.btnDeleteRace, false, "Excluir");
-            closeRaceModal();
-        })
-        .catch((error) => {
-            console.error("Erro ao excluir corrida:", error);
-            alert("Erro ao excluir. Verifique o console.");
-            setLoadingState(dom.btnDeleteRace, false, "Excluir");
-        });
-}
-
-// Abre o Modal de Edição de Perfil
-function openProfileModal() {
-    // Os dados já são preenchidos pelo renderProfile()
-    dom.profileModal.classList.remove('hidden');
-    dom.profileModalOverlay.classList.remove('hidden');
-}
-
-// Fecha o Modal de Edição de Perfil
-function closeProfileModal() {
-    dom.profileModal.classList.add('hidden');
-    dom.profileModalOverlay.classList.add('hidden');
-}
-
-// Salva os dados do Perfil
-function handleProfileSave(e) {
-    e.preventDefault();
-    const uid = appState.authUserId; // Só podemos salvar o nosso
-    if (!uid) return;
-    
-    const profileData = {
-        runner1Name: dom.profileRunner1Name.value.trim(),
-        runner2Name: dom.profileRunner2Name.value.trim(),
-        teamName: dom.profileTeamName.value.trim(),
-        bio: dom.profileBio.value.trim(),
-        location: dom.profileLocation.value.trim(),
-        birthdate: dom.profileBirthdateEdit.value,
-        profilePictureUrl: dom.profilePictureUrl.value.trim()
-    };
-    
-    setLoadingState(dom.btnSaveProfile, true, "Salvando...");
-    
-    // Atualiza o perfil
-    const promiseProfile = db.ref(`/users/${uid}/profile`).update(profileData);
-    
-    // V9.2: Atualiza o nome nos comentários de corridas
-    const promiseRaceComments = db.ref('/raceComments').once('value', (snapshot) => {
-        if (!snapshot.exists()) return;
-        const updates = {};
-        snapshot.forEach(raceCommentsSnap => {
-            const raceId = raceCommentsSnap.key;
-            raceCommentsSnap.forEach(commentSnap => {
-                if (commentSnap.val().uid === uid) {
-                    updates[`/raceComments/${raceId}/${commentSnap.key}/commenterName`] = profileData.runner1Name;
-                }
-            });
-        });
-        return db.ref().update(updates);
-    });
-
-    // V9.2: Atualiza o nome/pic nos likes de corridas
-    const promiseRaceLikes = db.ref('/raceLikes').once('value', (snapshot) => {
-        if (!snapshot.exists()) return;
-        const updates = {};
-        snapshot.forEach(raceLikesSnap => {
-            const raceId = raceLikesSnap.key;
-            if (raceLikesSnap.hasChild(uid)) {
-                updates[`/raceLikes/${raceId}/${uid}/runner1Name`] = profileData.runner1Name;
-                updates[`/raceLikes/${raceId}/${uid}/pic`] = profileData.profilePictureUrl;
-            }
-        });
-        return db.ref().update(updates);
-    });
-
-    // V9.6: Atualiza o nome/pic nos comentários do mural (profileComments)
-    const promiseProfileComments = db.ref('/profileComments').once('value', (snapshot) => {
-        if (!snapshot.exists()) return;
-        const updates = {};
-        snapshot.forEach(profileCommentsSnap => {
-            const profileUid = profileCommentsSnap.key;
-            profileCommentsSnap.forEach(commentSnap => {
-                 if (commentSnap.val().uid === uid) {
-                    updates[`/profileComments/${profileUid}/${commentSnap.key}/commenterName`] = profileData.runner1Name;
-                    updates[`/profileComments/${profileUid}/${commentSnap.key}/commenterPic`] = profileData.profilePictureUrl;
-                }
-            });
-        });
-        return db.ref().update(updates);
-    });
-
-    // Executa todas as atualizações
-    Promise.all([promiseProfile, promiseRaceComments, promiseRaceLikes, promiseProfileComments])
-        .then(() => {
-            console.log("Perfil e todas as referências atualizadas com sucesso.");
-            setLoadingState(dom.btnSaveProfile, false, "Salvar");
-            closeProfileModal();
-        })
-        .catch((error) => {
-            console.error("Erro ao salvar perfil:", error);
-            alert("Erro ao salvar. Verifique o console.");
-            setLoadingState(dom.btnSaveProfile, false, "Salvar");
-        });
-}
-
-// ==========================================
-// SEÇÃO 4: UPLOAD DE MÍDIA (V5 - Cloudinary)
-// ==========================================
-
-// Abre o Modal de Upload de Mídia
-function openMediaUploadModal(raceId, raceName) {
-    dom.mediaUploadForm.reset();
-    dom.mediaUploadPreview.innerHTML = '';
-    dom.mediaUploadProgress.style.width = '0%';
-    dom.mediaUploadProgress.classList.add('hidden');
-    dom.btnSubmitMedia.disabled = true; // Desabilita até selecionar arquivo
-    
-    // Preenche os dados da corrida
-    dom.mediaUploadRaceId.value = raceId;
-    dom.mediaUploadName.value = `Mídia - ${raceName}`;
-    
-    dom.mediaUploadModal.classList.remove('hidden');
-    dom.mediaModalOverlay.classList.remove('hidden');
-}
-
-// Fecha o Modal de Upload de Mídia
-function closeMediaUploadModal() {
-    dom.mediaUploadModal.classList.add('hidden');
-    dom.mediaModalOverlay.classList.add('hidden');
-}
-
-// Prepara a pré-visualização da mídia
-function handleMediaFileChange(event) {
-    const file = event.target.files[0];
-    if (!file) {
-        dom.mediaUploadPreview.innerHTML = '';
-        dom.btnSubmitMedia.disabled = true;
-        return;
-    }
-    
-    dom.btnSubmitMedia.disabled = false;
-    dom.mediaUploadPreview.innerHTML = '';
-    
-    if (file.type.startsWith('image/')) {
-        const img = document.createElement('img');
-        img.src = URL.createObjectURL(file);
-        img.onload = () => URL.revokeObjectURL(img.src);
-        dom.mediaUploadPreview.appendChild(img);
-    } else if (file.type.startsWith('video/')) {
-        const video = document.createElement('video');
-        video.src = URL.createObjectURL(file);
-        video.controls = true;
-        video.onloadeddata = () => URL.revokeObjectURL(video.src);
-        dom.mediaUploadPreview.appendChild(video);
-    } else {
-        dom.mediaUploadPreview.innerHTML = `<p>Arquivo: ${file.name}</p>`;
-    }
-}
-
-// Lida com o Upload para o Cloudinary (V5)
-function handleMediaUpload(e) {
-    e.preventDefault();
-    
-    const file = dom.mediaUploadFile.files[0];
-    const raceId = dom.mediaUploadRaceId.value;
-    const mediaName = dom.mediaUploadName.value.trim();
-    const uid = appState.authUserId;
-
-    if (!file || !raceId || !uid) {
-        alert("Erro: Arquivo, ID da Corrida ou Usuário não encontrado.");
-        return;
-    }
-    
-    // (V10) Verifica se as chaves do Cloudinary existem (do config.js)
-    if (typeof CLOUDINARY_CLOUD_NAME === "undefined" || !CLOUDINARY_CLOUD_NAME ||
-        typeof CLOUDINARY_UNSIGNED_PRESET === "undefined" || !CLOUDINARY_UNSIGNED_PRESET) {
-            
-        console.error("Erro: Configuração do Cloudinary não encontrada.");
-        alert("Erro: A função de upload não está configurada. (CLOUDINARY not found)");
-        return;
-    }
-
-    const url = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/upload`;
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('upload_preset', CLOUDINARY_UNSIGNED_PRESET);
-
-    setLoadingState(dom.btnSubmitMedia, true, "Enviando...");
-    dom.mediaUploadProgress.classList.remove('hidden');
-    
-    // Simula progresso (Fetch API não suporta nativamente)
-    // Para progresso real, usaríamos XHR
-    let progress = 0;
-    const interval = setInterval(() => {
-        progress += 10;
-        dom.mediaUploadProgress.style.width = `${progress}%`;
-        if (progress >= 90) clearInterval(interval); // Para em 90%
-    }, 200);
-
-    fetch(url, {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        clearInterval(interval);
-        dom.mediaUploadProgress.style.width = '100%';
-        
-        if (data.error) {
-            throw new Error(data.error.message);
-        }
-
-        console.log("Upload para Cloudinary concluído:", data);
-
-        // Prepara os dados para salvar no Firebase
-        const mediaData = {
-            raceId: raceId,
-            name: mediaName,
-            url: data.secure_url,
-            type: data.resource_type, // 'image' ou 'video'
-            format: data.format,
-            uploadedAt: firebase.database.ServerValue.TIMESTAMP
-        };
-        
-        // Cria thumbnail (Cloudinary)
-        if (data.resource_type === 'image') {
-            mediaData.thumbnail = data.secure_url.replace('/upload/', '/upload/c_thumb,w_200,g_face/');
-        } else if (data.resource_type === 'video') {
-            mediaData.thumbnail = data.secure_url.replace(`.${data.format}`, '.jpg');
-        }
-
-        // Salva a referência no Firebase
-        const mediaRef = db.ref(`/users/${uid}/media`).push();
-        const mediaId = mediaRef.key;
-        
-        // V9.4: Salva no nó principal de mídias também
-        const updates = {};
-        updates[`/users/${uid}/media/${mediaId}`] = mediaData;
-        updates[`/raceMedia/${raceId}/${mediaId}`] = mediaData; // Nó espelhado
-        
-        // V9.4: Atualiza a contagem de mídias na corrida
-        const raceMediaCountRef = db.ref(`/users/${uid}/races/${raceId}/mediaCount`);
-
-        return db.ref().update(updates).then(() => {
-            // Incrementa a contagem
-            return raceMediaCountRef.transaction((currentCount) => {
-                return (currentCount || 0) + 1;
-            });
-        });
-    })
-    .then(() => {
-        console.log("Dados da mídia salvos no Firebase.");
-        setLoadingState(dom.btnSubmitMedia, false, "Enviar");
-        closeMediaUploadModal();
-    })
-    .catch((error) => {
-        clearInterval(interval);
-        console.error("Erro no upload da mídia: ", error);
-        alert(`Erro no upload: ${error.message}`);
-        setLoadingState(dom.btnSubmitMedia, false, "Enviar");
-        dom.mediaUploadProgress.style.width = '0%';
-        dom.mediaUploadProgress.classList.add('hidden');
-    });
-}
-
-// Exclui Mídia (V13)
-function handleMediaDelete(mediaId, raceId) {
-    const uid = appState.currentViewingUid;
-    
-    if (!mediaId || !raceId || !uid) {
-        alert("Erro: IDs não encontrados para exclusão.");
-        return;
-    }
-    
-    if (!confirm("Tem certeza que deseja excluir esta mídia?")) {
-        return;
-    }
-    
-    // (Cloudinary API de exclusão requer autenticação - pulando por enquanto)
-    // Apenas exclui as referências do Firebase
-    
-    const updates = {};
-    updates[`/users/${uid}/media/${mediaId}`] = null;
-    updates[`/raceMedia/${raceId}/${mediaId}`] = null;
-    
-    const raceMediaCountRef = db.ref(`/users/${uid}/races/${raceId}/mediaCount`);
-
-    db.ref().update(updates)
-        .then(() => {
-            // Decrementa a contagem
-            return raceMediaCountRef.transaction((currentCount) => {
-                return (currentCount || 1) - 1;
-            });
-        })
-        .then(() => {
-            console.log("Mídia excluída do Firebase.");
-        })
-        .catch((err) => {
-            console.error("Erro ao excluir mídia:", err);
-            alert("Erro ao excluir mídia.");
-        });
-}
-
-// ==========================================
-// SEÇÃO 5: LÓGICA DE FILTROS E UTILITÁRIOS
-// ==========================================
-
-// Aplica os filtros na lista de corridas
-function filterRaces(races) {
-    if (!races) return {};
-    
-    const year = dom.filterYear.value;
-    const status = dom.filterStatus.value;
-    const runner = dom.filterRunner.value;
-
-    return Object.entries(races)
-        .filter(([raceId, race]) => {
-            // 1. Filtro de Ano
-            if (year && race.data.substring(0, 4) !== year) {
-                return false;
-            }
-            
-            // 2. Filtro de Status
-            if (status) {
-                const r1_match = race.r1 && race.r1.status === status;
-                const r2_match = appState.hasRunner2 && race.r2 && race.r2.status === status;
-                
-                // Se o status for "planned", precisa que AMBOS estejam "planned"
-                if (status === STATUS_PLANNED) {
-                    if (appState.hasRunner2) {
-                        if (!r1_match && !r2_match) return false;
-                    } else {
-                        if (!r1_match) return false;
-                    }
-                } else {
-                    // Se for "completed" ou "skipped", basta que UM tenha esse status
-                    if (!r1_match && !r2_match) return false;
-                }
-            }
-            
-            // 3. Filtro de Corredor (V3.7)
-            if (appState.hasRunner2 && runner) {
-                const match = race[runner] && race[runner].status === STATUS_COMPLETED;
-                if (!match) return false;
-            }
-            
-            return true;
-        })
-        .reduce((acc, [id, race]) => {
-            acc[id] = race;
-            return acc;
-        }, {});
-}
-
-// Atualiza os labels dos corredores no modal de corrida e filtros
-function updateRunnerLabelsAndForms() {
-    // Modal de Corrida
-    document.querySelector('label[for="race-time-runner1"]').textContent = `Tempo ${RUNNER_1_PROFILE.nameShort}`;
-    document.querySelector('label[for="race-status-runner1"]').textContent = `Status ${RUNNER_1_PROFILE.nameShort}`;
-    document.querySelector('label[for="race-time-runner2"]').textContent = `Tempo ${RUNNER_2_PROFILE.nameShort}`;
-    document.querySelector('label[for="race-status-runner2"]').textContent = `Status ${RUNNER_2_PROFILE.nameShort}`;
-    
-    // Filtro de Histórico
-    const runnerFilter = dom.filterRunner;
-    if (runnerFilter) {
-        runnerFilter.options[1].textContent = RUNNER_1_PROFILE.name;
-        runnerFilter.options[2].textContent = RUNNER_2_PROFILE.name;
-    }
-}
-
-// Converte '01' para 'Jan', '02' para 'Fev'
-function getMonthName(month) {
-    const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-    return months[parseInt(month, 10) - 1] || '';
-}
-
-// Define estado de loading para botões
-function setLoadingState(button, isLoading, loadingText = "...") {
-    if (!button) return;
-    
-    if (isLoading) {
-        button.disabled = true;
-        button.dataset.originalText = button.textContent;
-        button.textContent = loadingText;
-    } else {
-        button.disabled = false;
-        button.textContent = button.dataset.originalText || "Salvar";
-    }
-}
-
-// Mostra ou esconde um elemento (usando 'hidden')
-function toggleElement(element, show) {
-    if (!element) return;
-    if (show) {
-        element.classList.remove('hidden');
-    } else {
-        element.classList.add('hidden');
-    }
-}
-
-// Limpa listeners dinâmicos ao trocar de perfil
-function cleanupListeners() {
-    // Limpa listeners do Histórico (Races)
-    if (appState.currentRaceLikes && appState.currentRaceLikes.ref) {
-        console.log(`Limpando listener: ${appState.currentRaceLikes.type}`);
-        appState.currentRaceLikes.ref.off(appState.currentRaceLikes.event, appState.currentRaceLikes.callback);
-    }
-    // Limpa listeners do Mural (Comments)
-    if (appState.currentRaceComments && appState.currentRaceComments.ref) {
-         console.log(`Limpando listener: ${appState.currentRaceComments.type}`);
-        appState.currentRaceComments.ref.off(appState.currentRaceComments.event, appState.currentRaceComments.callback);
-    }
-    
-    appState.currentRaceLikes = {};
-    appState.currentRaceComments = {};
-}
-
-// Wrapper para db.ref().on() que armazena a ref e o callback para limpeza
-function setupRaceDataListener(ref, type, callback) {
-    const eventType = 'value';
-    const listenerCallback = (snapshot) => {
-        callback(snapshot.val());
-    };
-    
-    ref.on(eventType, listenerCallback);
-    
-    // Retorna o objeto para futura limpeza
-    return {
-        ref: ref,
-        type: type,
-        event: eventType,
-        callback: listenerCallback
-    };
-}
-
-// ==========================================
-// SEÇÃO 6: AÇÕES SOCIAIS (LIKES, COMENTÁRIOS V9.2)
-// ==========================================
-
-// --- Comentários do Mural (Profile Comments) ---
-
-function handleProfileCommentSubmit(e) {
-    e.preventDefault();
-    const commentText = dom.profileCommentsForm.querySelector('textarea').value.trim();
-    const profileOwnerUid = appState.currentViewingUid; // O dono do mural
-    
-    // Quem está comentando
-    const commenterUid = appState.authUserId;
-    const commenterName = appState.profileData.runner1Name || "Usuário";
-    const commenterPic = appState.profileData.profilePictureUrl || "icons/icon-192x192.png";
-    
-    if (!commentText || !profileOwnerUid || !commenterUid) {
-        alert("Não é possível postar comentário.");
-        return;
-    }
-    
-    const commentData = {
-        uid: commenterUid,
-        commenterName: commenterName,
-        commenterPic: commenterPic,
-        text: commentText,
-        timestamp: firebase.database.ServerValue.TIMESTAMP
-    };
-    
-    db.ref(`/profileComments/${profileOwnerUid}`).push(commentData)
-        .then(() => {
-            dom.profileCommentsForm.querySelector('textarea').value = ''; // Limpa
-        })
-        .catch((err) => {
-            console.error("Erro ao postar comentário no mural:", err);
-            alert("Erro ao postar comentário.");
-        });
-}
-
-function renderProfileComments(comments) {
-    const listElement = document.getElementById('profile-comments-list');
-    if (!listElement) return;
-    listElement.innerHTML = '';
-    
-    if (!comments) {
-        listElement.innerHTML = '<p class="social-empty-msg">Nenhum comentário no mural ainda. Seja o primeiro!</p>';
-        return;
-    }
-    
-    const fragment = document.createDocumentFragment();
-    
-    Object.entries(comments).forEach(([commentId, comment]) => {
-        const div = document.createElement('div');
-        div.className = 'social-comment-item';
-        div.dataset.commentId = commentId;
-        
-        const timestamp = new Date(comment.timestamp).toLocaleString('pt-BR');
-        
-        // V9.6: Permite dono do mural ou dono do comentário excluir
-        const canDelete = appState.isAdmin || (appState.authUserId === comment.uid) || (appState.authUserId === appState.currentViewingUid);
-        const deleteButton = canDelete ? 
-            `<button class="social-delete-comment" data-id="${commentId}" data-parent-id="${appState.currentViewingUid}" data-type="profileComments"><i class='bx bx-trash'></i></button>`
-            : '';
-            
-        div.innerHTML = `
-            <img src="${comment.commenterPic}" alt="${comment.commenterName}" class="profile-pic-small" data-uid="${comment.uid}">
-            <div class="social-comment-content">
-                <strong data-uid="${comment.uid}">${comment.commenterName}</strong>
-                <span>${timestamp}</span>
-                <p>${comment.text.replace(/\n/g, '<br>')}</p>
-            </div>
-            ${deleteButton}
-        `;
-        fragment.appendChild(div);
-    });
-    
-    listElement.appendChild(fragment);
-}
-
-// --- Comentários da Corrida (Race Comments) ---
-
-function showRaceCommentsModal(raceId, raceName) {
-    dom.raceCommentsModalTitle.textContent = `Comentários: ${raceName}`;
-    dom.raceCommentRaceId.value = raceId;
-    dom.raceCommentOwnerUid.value = appState.currentViewingUid;
-    
-    // Esconde o formulário se não estiver logado
-    toggleElement(dom.raceCommentsForm, appState.authUserId);
-    
-    dom.raceCommentsModal.classList.remove('hidden');
-    dom.raceCommentsModalOverlay.classList.remove('hidden');
-    
-    // Carrega os comentários
-    dom.raceCommentsList.innerHTML = '<div class="loader"></div>';
-    db.ref(`/raceComments/${raceId}`).orderByChild('timestamp').once('value', (snapshot) => {
-        dom.raceCommentsList.innerHTML = '';
-        if (!snapshot.exists()) {
-            dom.raceCommentsList.innerHTML = '<p class="social-empty-msg">Nenhum comentário ainda.</p>';
-            return;
-        }
-        
-        const fragment = document.createDocumentFragment();
-        snapshot.forEach(commentSnap => {
-            const comment = commentSnap.val();
-            const commentId = commentSnap.key;
-            
-            const div = document.createElement('div');
-            div.className = 'social-comment-item';
-            
-            const timestamp = new Date(comment.timestamp).toLocaleString('pt-BR');
-            
-            // Permite dono do perfil (dono da corrida) ou dono do comentário excluir
-            const canDelete = appState.isAdmin || (appState.authUserId === comment.uid) || (appState.authUserId === appState.currentViewingUid);
-            const deleteButton = canDelete ? 
-                `<button class="social-delete-comment" data-id="${commentId}" data-parent-id="${raceId}" data-type="raceComments"><i class='bx bx-trash'></i></button>`
-                : '';
-
-            div.innerHTML = `
-                <img src="${comment.commenterPic}" alt="${comment.commenterName}" class="profile-pic-small" data-uid="${comment.uid}">
-                <div class="social-comment-content">
-                    <strong data-uid="${comment.uid}">${comment.commenterName}</strong>
-                    <span>${timestamp}</span>
-                    <p>${comment.text.replace(/\n/g, '<br>')}</p>
-                </div>
-                ${deleteButton}
-            `;
-            fragment.appendChild(div);
-        });
-        dom.raceCommentsList.appendChild(fragment);
-    });
-}
-
-function closeRaceCommentsModal() {
-    dom.raceCommentsModal.classList.add('hidden');
-    dom.raceCommentsModalOverlay.classList.add('hidden');
-}
-
-function handleRaceCommentSubmit(e) {
-    e.preventDefault();
-    const text = dom.raceCommentText.value.trim();
-    const raceId = dom.raceCommentRaceId.value;
-    const ownerUid = dom.raceCommentOwnerUid.value; // Dono da corrida
-
-    // Quem está comentando
-    const commenterUid = appState.authUserId;
-    const commenterName = appState.profileData.runner1Name || "Usuário"; // V9.5.2: Garante que db.profile existe
-    const commenterPic = appState.profileData.profilePictureUrl || "icons/icon-192x192.png";
-    
-    if (!text || !raceId || !ownerUid || !commenterUid) {
-        alert("Não é possível postar o comentário.");
-        return;
-    }
-    
-    setLoadingState(dom.btnSubmitRaceComment, true, "Enviando...");
-    
-    const commentData = {
-        uid: commenterUid,
-        commenterName: commenterName,
-        commenterPic: commenterPic,
-        text: text,
-        timestamp: firebase.database.ServerValue.TIMESTAMP
-    };
-
-    // Salva o comentário
-    const commentRef = db.ref(`/raceComments/${raceId}`).push(commentData);
-    
-    // Atualiza a contagem na corrida
-    const raceCommentCountRef = db.ref(`/users/${ownerUid}/races/${raceId}/commentCount`);
-
-    Promise.all([commentRef, raceCommentCountRef.transaction((currentCount) => (currentCount || 0) + 1)])
-        .then(() => {
-            setLoadingState(dom.btnSubmitRaceComment, false, "Enviar");
-            dom.raceCommentText.value = '';
-            // Recarrega os comentários no modal
-            showRaceCommentsModal(raceId, dom.raceCommentsModalTitle.textContent.replace('Comentários: ', ''));
-        })
-        .catch((error) => {
-            console.error("Erro ao enviar comentário:", error);
-            alert("Erro ao enviar comentário.");
-            setLoadingState(dom.btnSubmitRaceComment, false, "Enviar");
-        });
-}
-
-
-// --- Likes da Corrida (Race Likes) ---
-
-function toggleLike(raceId, ownerUid, likerPic, likerName) {
-    const likerUid = appState.authUserId;
-    if (!likerUid) {
-        alert("Você precisa estar logado para curtir.");
-        return;
-    }
-
-    const likeRef = db.ref(`/raceLikes/${raceId}/${likerUid}`);
-    const raceLikeCountRef = db.ref(`/users/${ownerUid}/races/${raceId}/likeCount`);
-    
-    likeRef.once('value', (snapshot) => {
-        if (snapshot.exists()) {
-            // --- Descurtir ---
-            likeRef.remove();
-            raceLikeCountRef.transaction((currentCount) => (currentCount || 1) - 1);
-            // (Atualização visual é feita pelo listener 'handleRaceLike')
-        } else {
-            // --- Curtir ---
-            const likeData = {
-                uid: likerUid,
-                runner1Name: likerName,
-                pic: likerPic,
-                timestamp: firebase.database.ServerValue.TIMESTAMP
-            };
-            likeRef.set(likeData);
-            raceLikeCountRef.transaction((currentCount) => (currentCount || 0) + 1);
-        }
-    });
-}
-
-function showRaceLikesModal(raceId, raceName) {
-    dom.raceLikesModalTitle.textContent = `Curtidas: ${raceName}`;
-    dom.raceLikesModal.classList.remove('hidden');
-    dom.raceLikesModalOverlay.classList.remove('hidden');
-    
-    // Carrega os likes
-    dom.raceLikesList.innerHTML = '<div class="loader"></div>';
-    db.ref(`/raceLikes/${raceId}`).orderByChild('timestamp').once('value', (snapshot) => {
-        dom.raceLikesList.innerHTML = '';
-        if (!snapshot.exists()) {
-            dom.raceLikesList.innerHTML = '<p class="social-empty-msg">Nenhuma curtida ainda.</p>';
-            return;
-        }
-        
-        const fragment = document.createDocumentFragment();
-        snapshot.forEach(likeSnap => {
-            const like = likeSnap.val();
-            
-            const div = document.createElement('div');
-            div.className = 'social-like-item';
-            div.innerHTML = `
-                <img src="${like.pic}" alt="${like.runner1Name}" class="profile-pic-small" data-uid="${like.uid}">
-                <strong data-uid="${like.uid}">${like.runner1Name}</strong>
-            `;
-            fragment.appendChild(div);
-        });
-        dom.raceLikesList.appendChild(fragment);
-    });
-}
-
-function closeRaceLikesModal() {
-    dom.raceLikesModal.classList.add('hidden');
-    dom.raceLikesModalOverlay.classList.add('hidden');
-}
-
-// Handler para exclusão de comentários (Mural ou Corrida)
-function handleDeleteComment(id, parentId, type) {
-    if (!id || !parentId || !type) return;
-
-    if (!confirm('Tem certeza que deseja excluir este comentário?')) return;
-    
-    let commentRef;
-    let countRef;
-
-    if (type === 'raceComments') {
-        commentRef = db.ref(`/raceComments/${parentId}/${id}`);
-        countRef = db.ref(`/users/${appState.currentViewingUid}/races/${parentId}/commentCount`);
-    } else if (type === 'profileComments') {
-        commentRef = db.ref(`/profileComments/${parentId}/${id}`);
-        // Mural não tem contador
-    } else {
-        return;
-    }
-
-    commentRef.remove()
-        .then(() => {
-            console.log("Comentário excluído.");
-            // Atualiza a contagem (se aplicável)
-            if (countRef) {
-                countRef.transaction((currentCount) => (currentCount || 1) - 1);
-            }
-            
-            // Recarrega o modal (se for comentário de corrida)
-            if (type === 'raceComments') {
-                showRaceCommentsModal(parentId, dom.raceCommentsModalTitle.textContent.replace('Comentários: ', ''));
-            }
-        })
-        .catch((err) => {
-            console.error("Erro ao excluir comentário:", err);
-            alert("Erro ao excluir.");
-        });
-}
-
-
-// ==========================================
-// SEÇÃO 7: LIGHTBOX (V8)
-// ==========================================
-const lightboxState = {
+// Estado da Aplicação V2 (para calendário público)
+let appState = {
+    rankingData: {},
+    resultadosEtapas: {},
+    allCorridas: {} // Corridas dos calendários públicos (copaAlcer, geral)
+};
+// Estado da Aplicação V9.2 (Listeners separados para Likes e Comentários)
+let currentRaceLikesListeners = {}; // Armazena listeners de LIKES ativos
+let currentRaceCommentsListeners = {}; // Armazena listeners de COMMENTS ativos
+let currentProfileCommentsListener = null; // Armazena listener de comentários de perfil ativo
+let lightboxState = { // V8 - Estado do Lightbox
     images: [],
     currentIndex: 0,
     isOpen: false
 };
 
-function openLightbox(index) {
-    if (index < 0 || index >= lightboxState.images.length) return;
-    
-    const media = lightboxState.images[index];
-    lightboxState.currentIndex = index;
-    lightboxState.isOpen = true;
-    
-    dom.lightboxImage.src = media.src;
-    dom.lightboxCaption.textContent = media.caption;
-    dom.lightbox.classList.remove('hidden');
-    
-    // Mostra/esconde setas de navegação
-    dom.lightboxPrev.classList.toggle('hidden', index === 0);
-    dom.lightboxNext.classList.toggle('hidden', index === lightboxState.images.length - 1);
+
+let firebaseApp, database, auth, functions;
+let authUser = null; // Usuário autenticado (ou null)
+let currentViewingUid = null; // UID do perfil sendo visualizado atualmente
+let isAdmin = false;
+let hasRunner2 = false; // Flag para perfil com 2 corredores
+
+// V4/V5 - Constantes de Configuração (serão preenchidas no DOMContentLoaded)
+let CLOUDINARY_URL = "";
+let CLOUDINARY_PRESET = "";
+
+const RUNNER_1_KEY = "runner1";
+const RUNNER_2_KEY = "runner2";
+
+// Perfis padrão, serão sobrescritos pelos dados do Firebase
+let RUNNER_1_PROFILE = { name: 'Corredor 1', nameShort: 'Corredor 1', emoji: '🏃‍♂️' };
+let RUNNER_2_PROFILE = { name: 'Corredora 2', nameShort: 'Corredora 2', emoji: '🏃‍♀️' };
+
+// --- Cache de Elementos DOM (Completo V9.1) ---
+const dom = {
+    // V1 (Perfis & Auth)
+    btnLogout: document.getElementById('btn-logout'),
+    btnBackToPublic: document.getElementById('btn-back-to-public'),
+    btnBackToMyDashboard: document.getElementById('btn-back-to-my-dashboard'),
+    userInfo: document.getElementById('user-info'),
+    userEmail: document.getElementById('user-email'),
+    loginOrPublicView: document.getElementById('login-or-public-view'),
+    loginView: document.getElementById('login-view'),
+    loginForm: document.getElementById('login-form'),
+    loginEmail: document.getElementById('login-email'),
+    loginPassword: document.getElementById('login-password'),
+    loginError: document.getElementById('login-error'),
+    loginTitle: document.getElementById('login-title'),
+    btnLoginSubmit: document.getElementById('btn-login-submit'),
+    btnSignUpSubmit: document.getElementById('btn-signup-submit'),
+    loginToggleLink: document.getElementById('login-toggle-link'),
+    signupFields: document.getElementById('signup-fields'),
+    signupRunner1Name: document.getElementById('signup-runner1-name'),
+    signupRunner2Name: document.getElementById('signup-runner2-name'),
+    signupTeamName: document.getElementById('signup-team-name'),
+    publicView: document.getElementById('public-view'),
+    publicProfileListPublic: document.getElementById('public-profile-list-public'),
+    publicProfileListLogged: document.getElementById('public-profile-list-logged'),
+    userContent: document.getElementById('user-content'),
+    headerSubtitle: document.getElementById('header-subtitle'), // Nomes
+    prGrid: document.getElementById('pr-grid'),
+    summaryGrid: document.getElementById('summary-grid'),
+    controlsSection: document.getElementById('controls-section'),
+    btnAddnew: document.getElementById('btn-add-new'),
+    historyContainer: document.getElementById('history-container'), // ID do container HTML
+    pendingApprovalView: document.getElementById('pending-approval-view'),
+    rejectedView: document.getElementById('rejected-view'),
+    rejectedEmail: document.getElementById('rejected-email'),
+
+    // V1 (Modal Corrida)
+    modal: document.getElementById('race-modal'),
+    form: document.getElementById('race-form'),
+    modalTitle: document.getElementById('modal-title'),
+    btnDelete: document.getElementById('btn-delete'),
+    btnCloseModal: document.getElementById('btn-close-modal'),
+    btnCancel: document.getElementById('btn-cancel'),
+    runner1FormGroup: document.getElementById('runner1-form-group'),
+    runner2FormGroup: document.getElementById('runner2-form-group'),
+
+    // V2 (Calendário Público)
+    copaContainerPublic: document.getElementById('copa-container-public'),
+    geralContainerPublic: document.getElementById('geral-container-public'),
+    resultadosContainerPublic: document.getElementById('resultados-container-public'),
+    copaContainerLogged: document.getElementById('copa-container-logged'),
+    geralContainerLogged: document.getElementById('geral-container-logged'),
+    resultadosContainerLogged: document.getElementById('resultados-container-logged'),
+
+    // V2 (Modal Resultados)
+    modalOverlay: document.getElementById('modal-overlay'),
+    modalTitleResults: document.getElementById('modal-title-results'),
+    modalContentResults: document.getElementById('modal-content-results'),
+    modalSearchInput: document.getElementById('modal-search-input'),
+    btnCloseResultsModal: document.getElementById('btn-close-results-modal'),
+
+    // V4 + V8 (Modal Mídia)
+    mediaModal: document.getElementById('media-modal'),
+    mediaForm: document.getElementById('media-form'),
+    mediaRaceIdInput: document.getElementById('media-race-id'),
+    mediaModalTitle: document.getElementById('media-modal-title'),
+    btnCloseMediaModal: document.getElementById('btn-close-media-modal'),
+    btnCancelMediaUpload: document.getElementById('btn-cancel-media-upload'),
+    btnConfirmMediaUpload: document.getElementById('btn-confirm-media-upload'),
+    mediaFileInput: document.getElementById('media-file-input'),
+    mediaPreviewContainer: document.getElementById('media-preview-container'), // Agora é o grid V8
+    mediaUploadStatus: document.getElementById('media-upload-status'),
+
+    // V5 (Header Detalhado)
+    headerProfilePicture: document.getElementById('header-profile-picture'),
+    headerLocation: document.getElementById('header-location'),
+    headerBio: document.getElementById('header-bio'),
+    btnEditProfile: document.getElementById('btn-edit-profile'),
+
+    // V5 (Modal Edição Perfil)
+    profileEditModal: document.getElementById('profile-edit-modal'),
+    profileEditForm: document.getElementById('profile-edit-form'),
+    btnCloseProfileEditModal: document.getElementById('btn-close-profile-edit-modal'),
+    btnCancelProfileEdit: document.getElementById('btn-cancel-profile-edit'),
+    btnSaveProfileEdit: document.getElementById('btn-save-profile-edit'),
+    profileEditRunner1Name: document.getElementById('profile-edit-runner1-name'),
+    profileEditRunner2Name: document.getElementById('profile-edit-runner2-name'),
+    profileEditRunner2NameSeparator: document.getElementById('profile-edit-runner2-name-separator'),
+    profileEditTeam: document.getElementById('profile-edit-team'),
+    profileEditBio: document.getElementById('profile-edit-bio'),
+    profileEditLocation: document.getElementById('profile-edit-location'),
+    profileEditBirthdate: document.getElementById('profile-edit-birthdate'),
+    profileEditPictureInput: document.getElementById('profile-edit-picture-input'),
+    profileEditPicturePreviewContainer: document.getElementById('profile-edit-picture-preview-container'),
+    profileEditPicturePreview: document.getElementById('profile-edit-picture-preview'),
+    profilePictureUploadStatus: document.getElementById('profile-picture-upload-status'),
+
+    // V7/8 (Modal Likers)
+    likersModal: document.getElementById('likers-modal'),
+    likersModalTitle: document.getElementById('likers-modal-title'),
+    btnCloseLikersModal: document.getElementById('btn-close-likers-modal'),
+    btnCancelLikersModal: document.getElementById('btn-cancel-likers-modal'),
+    likersModalList: document.getElementById('likers-modal-list'),
+
+    // V7/8 (Comentários de Perfil)
+    profileCommentsSection: document.getElementById('profile-comments-section'),
+    profileCommentsList: document.getElementById('profile-comments-list'),
+    profileCommentForm: document.getElementById('profile-comment-form'),
+    profileCommentInput: document.getElementById('profile-comment-input'),
+
+    // V8 (Lightbox)
+    lightboxOverlay: document.getElementById('lightbox-overlay'),
+    lightboxImage: document.getElementById('lightbox-image'),
+    lightboxClose: document.getElementById('lightbox-close'),
+    lightboxPrev: document.getElementById('lightbox-prev'),
+    lightboxNext: document.getElementById('lightbox-next'),
+    lightboxCaption: document.getElementById('lightbox-caption'),
+
+    // V9.1 (Layout Recolhível)
+    toggleHistoryBtn: document.getElementById('toggle-history-btn'),
+    historyContent: document.getElementById('history-container') // Cache para o conteúdo recolhível
+};
+
+// ======================================================
+// SEÇÃO V1: LÓGICA DE PERFIS DE USUÁRIO (ATUALIZADA V5)
+// ======================================================
+
+// --- Funções Utilitárias ---
+function timeToSeconds(timeStr) {
+    if (!timeStr || typeof timeStr !== 'string') return null;
+    const parts = timeStr.split(':').map(Number).filter(n => !isNaN(n));
+    let seconds = 0;
+    if (parts.length === 2) { seconds = parts[0] * 60 + parts[1]; }
+    else if (parts.length === 3) { seconds = parts[0] * 3600 + parts[1] * 60 + parts[2]; }
+    else { return null; }
+    return seconds;
 }
 
-function closeLightbox() {
-    lightboxState.isOpen = false;
-    dom.lightbox.classList.add('hidden');
-    dom.lightboxImage.src = '';
-    dom.lightboxCaption.textContent = '';
+function secondsToTime(totalSeconds) {
+    if (totalSeconds === null || isNaN(totalSeconds) || totalSeconds === Infinity) return 'N/A';
+    totalSeconds = Math.round(totalSeconds);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    const pad = (num) => String(num).padStart(2, '0');
+    return (hours > 0) ? `${pad(hours)}:${pad(minutes)}:${pad(seconds)}` : `${pad(minutes)}:${pad(seconds)}`;
 }
 
-function showPrevLightbox() {
-    openLightbox(lightboxState.currentIndex - 1);
+function normalizeTime(timeStr) {
+    if (!timeStr) return null;
+    const cleanTime = timeStr.replace(/[^0-9:]/g, '');
+    const parts = cleanTime.split(':');
+    if (parts.length === 2) { return `00:${String(parts[0]).padStart(2, '0')}:${String(parts[1]).padStart(2, '0')}`; }
+    else if (parts.length === 3) { return `${String(parts[0]).padStart(2, '0')}:${String(parts[1]).padStart(2, '0')}:${String(parts[2]).padStart(2, '0')}`; }
+    return null;
 }
 
-function showNextLightbox() {
-    openLightbox(lightboxState.currentIndex + 1);
+function calculatePace(timeStr, distance) {
+    const seconds = timeToSeconds(timeStr);
+    const dist = parseFloat(distance);
+    if (!seconds || !dist || dist <= 0) return 'N/A';
+    const paceInSeconds = seconds / dist;
+    const paceMinutes = Math.floor(paceInSeconds / 60);
+    const paceSeconds = Math.round(paceInSeconds % 60);
+    return `${String(paceMinutes).padStart(2, '0')}:${String(paceSeconds).padStart(2, '0')} /km`;
+}
+
+// V7/8 - Função utilitária para formatar timestamp
+function formatTimestamp(timestamp) {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    // Formato mais curto: DD/MM HH:MM
+    const optionsDate = { day: '2-digit', month: '2-digit' };
+    const optionsTime = { hour: '2-digit', minute: '2-digit', hour12: false };
+    return `${date.toLocaleDateString('pt-BR', optionsDate)} ${date.toLocaleTimeString('pt-BR', optionsTime)}`;
 }
 
 
-// ==========================================
-// SEÇÃO 8: RECOLHER/EXPANDIR (V13)
-// ==========================================
+// --- Funções de Lógica da Aplicação (V1 + V5 + V7/8) ---
 
-function toggleCollapsibleSection(element, buttonElement) {
-    const contentElement = element;
-    const isCollapsed = contentElement.classList.toggle('collapsed');
-    
-    // Gira o ícone
-    const icon = buttonElement.querySelector('i');
-    if (icon) {
-        icon.style.transform = isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)';
-    }
-    
-    // (Opcional) Salvar o estado no localStorage
-    try {
-        if (contentElement.id) {
-            localStorage.setItem(contentElement.id + '_collapsed', isCollapsed);
+// Atualiza a UI com base nos dados do perfil carregado (db.profile)
+function updateProfileUI() {
+    const profile = db.profile;
+    hasRunner2 = false;
+
+    // Define perfis padrão
+    RUNNER_1_PROFILE = { name: 'Corredor 1', nameShort: 'Corredor 1', emoji: '🏃‍♂️' };
+    RUNNER_2_PROFILE = { name: 'Corredora 2', nameShort: 'Corredora 2', emoji: '🏃‍♀️' };
+
+    const defaultProfilePic = 'icons/icon-192x192.png';
+
+    if (profile) {
+        if (profile.runner1Name) {
+            RUNNER_1_PROFILE = { name: profile.runner1Name, nameShort: profile.runner1Name.split(' ')[0] || "Corredor", emoji: '🏃‍♂️' };
         }
-    } catch (e) {
-        console.warn("Não foi possível salvar estado no localStorage.");
+        if (profile.runner2Name && profile.runner2Name.trim() !== "") {
+            hasRunner2 = true;
+            RUNNER_2_PROFILE = { name: profile.runner2Name, nameShort: profile.runner2Name.split(' ')[0] || "Corredora", emoji: '🏃‍♀️' };
+            dom.runner2FormGroup.classList.remove('hidden');
+        } else {
+            dom.runner2FormGroup.classList.add('hidden');
+        }
+
+        // V5 - Atualiza Header com Novos Dados
+        dom.headerProfilePicture.src = profile.profilePictureUrl || defaultProfilePic;
+        dom.headerLocation.textContent = profile.location || '';
+        dom.headerBio.textContent = profile.bio || '';
+        dom.headerLocation.classList.toggle('hidden', !profile.location);
+        dom.headerBio.classList.toggle('hidden', !profile.bio);
+
+    } else {
+        // Caso não haja perfil (raro, mas defensivo)
+        dom.runner2FormGroup.classList.add('hidden');
+        dom.headerProfilePicture.src = defaultProfilePic;
+        dom.headerLocation.textContent = '';
+        dom.headerBio.textContent = '';
+        dom.headerLocation.classList.add('hidden');
+        dom.headerBio.classList.add('hidden');
     }
+
+    // Atualiza nomes no header e nos formulários
+    let headerTitle = RUNNER_1_PROFILE.name;
+    if (hasRunner2) {
+        headerTitle += ` & ${RUNNER_2_PROFILE.name}`;
+    }
+    dom.headerSubtitle.textContent = headerTitle; // Nomes principais
+
+    dom.runner1FormGroup.querySelector('h4').innerHTML = `${RUNNER_1_PROFILE.name} ${RUNNER_1_PROFILE.emoji}`;
+    dom.runner2FormGroup.querySelector('h4').innerHTML = `${RUNNER_2_PROFILE.name} ${RUNNER_2_PROFILE.emoji}`;
+
+    // V5 - Mostra/Esconde botão Editar Perfil
+    const canEditProfile = authUser && authUser.uid === currentViewingUid;
+    dom.btnEditProfile.classList.toggle('hidden', !canEditProfile);
+
+    // V7/8 - Mostra/Esconde seção de comentários do perfil e formulário
+    dom.profileCommentsSection.classList.remove('hidden'); // Sempre mostra a seção
+    dom.profileCommentForm.classList.toggle('hidden', !authUser); // Esconde form se deslogado
+    // Carrega/Atualiza comentários do perfil
+    loadProfileComments(currentViewingUid);
 }
 
-// Carrega o estado salvo ao iniciar
-function loadCollapsibleState() {
-    try {
-        if (localStorage.getItem(dom.toggleHistoryContent.id + '_collapsed') === 'true') {
-            toggleCollapsibleSection(dom.toggleHistoryContent, dom.toggleHistoryBtn);
-        }
-        if (localStorage.getItem(dom.toggleCommentsContent.id + '_collapsed') === 'true') {
-            toggleCollapsibleSection(dom.toggleCommentsContent, dom.toggleCommentsBtn);
-        }
-    } catch (e) {
-        console.warn("Não foi possível ler estado do localStorage.");
-    }
-}
 
-// ==========================================
-// SEÇÃO 9: EVENT LISTENERS DA UI
-// ==========================================
-function setupEventListeners() {
-    // --- Autenticação ---
-    dom.loginForm.addEventListener('submit', handleLogin);
-    dom.signupForm.addEventListener('submit', handleSignUp);
-    dom.btnLogout.addEventListener('click', signOutUser);
-    dom.btnShowLogin.addEventListener('click', showLoginForm);
-    dom.btnShowSignup.addEventListener('click', showSignupForm);
-    
-    // V1: Navegação (Voltar)
-    const backToLoginButtons = document.querySelectorAll('.btn-back-to-login');
-    backToLoginButtons.forEach(btn => btn.addEventListener('click', () => showView('loginOrPublicView')));
-    dom.btnTrySignupAgain.addEventListener('click', showSignupForm); // V1: Botão de Rejeitado
-    
-    // --- Navegação Principal (Logado) ---
-    dom.btnBackToPublic.addEventListener('click', () => {
-        loadPublicData(); // Recarrega dados públicos
-        showView('loginOrPublicView');
-        dom.header.classList.add('hidden'); // Esconde o header
+function renderDashboard() {
+    const racesArray = Object.values(db.races);
+    const prs = { runner1: {}, runner2: {} };
+    const distances = [2, 5, 6, 7, 10, 12, 16, 17];
+
+    let totalKmRunner1 = 0, totalKmRunner2 = 0, totalRacesJuntos = 0, completedRacesRunner1 = 0, completedRacesRunner2 = 0;
+
+    distances.forEach(d => {
+        prs.runner1[d] = { time: 'N/A', seconds: Infinity };
+        prs.runner2[d] = { time: 'N/A', seconds: Infinity };
     });
-    dom.btnBackToMyDashboard.addEventListener('click', () => loadUserProfile(appState.authUserId, true));
 
-    // --- Navegação do Header (V8) ---
-    if (dom.headerProfileInfo) {
-        dom.headerProfileInfo.addEventListener('click', () => {
-            if (appState.authUserId) {
-                loadUserProfile(appState.authUserId, true); // Vai para o próprio perfil
+    racesArray.forEach(race => {
+        const runner1Data = race[RUNNER_1_KEY];
+        const runner2Data = race[RUNNER_2_KEY];
+
+        if (race.juntos && runner1Data && runner1Data.status === 'completed' && runner2Data && runner2Data.status === 'completed') totalRacesJuntos++;
+
+        if (runner1Data && runner1Data.status === 'completed') {
+            completedRacesRunner1++;
+            const dist = parseFloat(runner1Data.distance || race.distance);
+            const timeSec = timeToSeconds(runner1Data.time);
+            if (dist) totalKmRunner1 += dist;
+            if (dist && prs.runner1[dist] && timeSec < prs.runner1[dist].seconds) {
+                prs.runner1[dist] = { seconds: timeSec, time: secondsToTime(timeSec) };
+            }
+        }
+
+        if (runner2Data && runner2Data.status === 'completed') {
+            completedRacesRunner2++;
+            const dist = parseFloat(runner2Data.distance || race.distance);
+            const timeSec = timeToSeconds(runner2Data.time);
+            if (dist) totalKmRunner2 += dist;
+            if (dist && prs.runner2[dist] && timeSec < prs.runner2[dist].seconds) {
+                prs.runner2[dist] = { seconds: timeSec, time: secondsToTime(timeSec) };
+            }
+        }
+    });
+
+    dom.prGrid.innerHTML = distances.map(d => {
+        const runner2PR_HTML = hasRunner2
+            ? `<div class="runner-pr"><strong class="runner-pr-thamis">${RUNNER_2_PROFILE.nameShort}: ${prs.runner2[d].time}</strong></div>`
+            : '';
+
+        return `
+        <div class="stat-card pr-card">
+            <div class="stat-label">PR ${d}km</div>
+            <div class="stat-number">
+                <div class="runner-pr"><span class="runner-pr-thiago">${RUNNER_1_PROFILE.nameShort}: ${prs.runner1[d].time}</span></div>
+                ${runner2PR_HTML}
+            </div>
+        </div>`;
+    }).join('');
+
+    // CORREÇÃO: A contagem de corridas estava errada para usuários 'sozinhos'
+    // Agora, contamos corridas únicas onde *pelo menos um* corredor completou.
+    const totalCorridasCompletasUnicas = racesArray.filter(race =>
+        (race[RUNNER_1_KEY] && race[RUNNER_1_KEY].status === 'completed') ||
+        (hasRunner2 && race[RUNNER_2_KEY] && race[RUNNER_2_KEY].status === 'completed') // Só conta R2 se o perfil tiver R2
+    ).length;
+    const totalCorridasLabel = "Corridas Concluídas"; // Simplificado
+
+    const juntosCardHTML = hasRunner2
+        ? `<div class="stat-card"><div class="stat-number">${totalRacesJuntos} 👩🏻‍❤️‍👨🏻</div><div class="stat-label">Corridas Juntos</div></div>`
+        : '';
+
+    const totalKmCombined = totalKmRunner1 + totalKmRunner2;
+    const totalKmCombinedLabel = hasRunner2 ? "Total KM (Casal)" : "Total KM";
+
+    const splitKmCardHTML = hasRunner2
+        ? `<div class="stat-card">
+            <div class="stat-number">
+                <span class="runner-pr-thiago">${totalKmRunner1.toFixed(1)}</span> / <strong class="runner-pr-thamis">${totalKmRunner2.toFixed(1)}</strong>
+            </div>
+            <div class="stat-label">Total KM (${RUNNER_1_PROFILE.nameShort} / ${RUNNER_2_PROFILE.nameShort})</div>
+           </div>`
+        : `<div class="stat-card">
+            <div class="stat-number">
+                ${totalKmRunner1.toFixed(1)} km
+            </div>
+            <div class="stat-label">Total KM (${RUNNER_1_PROFILE.nameShort})</div>
+           </div>`;
+
+    dom.summaryGrid.innerHTML = `
+        <div class="stat-card"><div class="stat-number">${totalCorridasCompletasUnicas}</div><div class="stat-label">${totalCorridasLabel}</div></div>
+        ${juntosCardHTML}
+        <div class="stat-card"><div class="stat-number">${totalKmCombined.toFixed(1)} km</div><div class="stat-label">${totalKmCombinedLabel}</div></div>
+        ${splitKmCardHTML}
+    `;
+}
+
+function renderHistory() {
+    dom.historyContent.innerHTML = ''; // Usa historyContent (cache DOM)
+    // Desliga listeners de interações antigas
+    Object.values(currentRaceLikesListeners).forEach(ref => ref.off()); // V9.2
+    Object.values(currentRaceCommentsListeners).forEach(ref => ref.off()); // V9.2
+    currentRaceLikesListeners = {}; // V9.2
+    currentRaceCommentsListeners = {}; // V9.2
+
+    const sortedRaces = Object.entries(db.races)
+        .map(([id, race]) => ({ ...race, id: id }))
+        .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    const racesByYear = sortedRaces.reduce((acc, race) => {
+        const year = race.year || new Date(race.date + 'T00:00:00').getFullYear().toString();
+        if (!acc[year]) acc[year] = [];
+        acc[year].push(race);
+        return acc;
+    }, {});
+
+    const sortedYears = Object.keys(racesByYear).sort((a, b) => b - a);
+
+    if (sortedYears.length === 0) {
+        dom.historyContent.innerHTML = `<div class="loader">${authUser ? 'Nenhuma corrida encontrada. Clique em "Adicionar Nova Corrida".' : 'Perfil sem corridas.'}</div>`;
+        return;
+    }
+
+    for (const year of sortedYears) {
+        const yearGroup = document.createElement('div');
+        yearGroup.className = 'year-group';
+        const yearEmoji = year.split('').map(d => ['0️⃣', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣'][d]).join('');
+        yearGroup.innerHTML = `<h2 class="year-title">${yearEmoji} (${racesByYear[year].length} provas)</h2>`;
+
+        const raceList = document.createElement('div');
+        raceList.className = 'race-card-list';
+        racesByYear[year].forEach(race => raceList.appendChild(createRaceCard(race)));
+
+        yearGroup.appendChild(raceList);
+        dom.historyContent.appendChild(yearGroup);
+    }
+}
+
+// Cria o HTML para um card de corrida (ATUALIZADO V9.2)
+function createRaceCard(race) {
+    const card = document.createElement('div');
+    const runner1Data = race[RUNNER_1_KEY];
+    const runner2Data = race[RUNNER_2_KEY];
+
+    if (!runner1Data) {
+        console.warn("Dados da corrida incompletos:", race);
+        return card;
+    }
+
+    let cardStatus = 'completed';
+    if (runner1Data.status === 'planned' || (runner2Data && runner2Data.status === 'planned')) cardStatus = 'planned';
+    if (runner1Data.status === 'skipped' && (!runner2Data || runner2Data.status === 'skipped')) cardStatus = 'skipped';
+
+    card.className = `race-card status-${cardStatus}`;
+    card.dataset.id = race.id;
+    card.dataset.ownerUid = currentViewingUid; // Assume UID atual como dono para UI inicial
+
+    const runner1Dist = runner1Data.distance || race.distance;
+    const runner1Pace = calculatePace(runner1Data.status === 'completed' ? runner1Data.time : runner1Data.goalTime, runner1Dist);
+    let runner2Dist = null;
+    let runner2Pace = null;
+    if(runner2Data) {
+        runner2Dist = runner2Data.distance || race.distance;
+        runner2Pace = calculatePace(runner2Data.status === 'completed' ? runner2Data.time : runner2Data.goalTime, runner2Dist);
+    }
+    let raceDistDisplay = race.distance ? `${race.distance}km` : (runner1Dist && runner2Data && runner2Dist && runner1Dist !== runner2Dist ? `${runner1Dist || '?'}k / ${runner2Dist || '?'}k` : `${runner1Dist || (runner2Data ? runner2Dist : '') || '?'}km`);
+
+    const canEdit = authUser && authUser.uid === currentViewingUid;
+
+    // --- Mídia (Fotos) - V8 Lightbox ---
+    let mediaHTML = '';
+    const mediaItems = race.media ? Object.values(race.media).sort((a, b) => a.uploadedAt - b.uploadedAt) : [];
+    if (mediaItems.length > 0) {
+        mediaHTML = `
+        <div class="race-card-media">
+            <h4>Mídia (${mediaItems.length})</h4>
+            <div class="media-gallery">
+                ${mediaItems.map((item, index) => `
+                    <img src="${item.url}" alt="Foto ${index + 1}" class="media-thumbnail" data-index="${index}" data-race-id="${race.id}">
+                `).join('')}
+            </div>
+        </div>`;
+    }
+
+    let mediaButtonHTML = '';
+    if (canEdit && cardStatus === 'completed') {
+        mediaButtonHTML = `<button class="btn-control btn-add-media" data-race-id="${race.id}" title="Adicionar/Excluir Mídia">📸</button>`;
+    }
+
+    // --- Seção Social (Likes + Preview Likers) - Placeholder ---
+    const socialSectionHTML = `
+        <div class="race-card-social" id="social-${race.id}">
+            <div class="like-section">
+                <button class="like-button" data-race-id="${race.id}" data-owner-uid="${currentViewingUid}" aria-label="Curtir" disabled>
+                    <i class='bx bx-loader-alt bx-spin'></i>
+                </button>
+                <span class="like-count" data-race-id="${race.id}" title="Ver quem curtiu">--</span>
+            </div>
+            <div class="likers-preview" data-race-id="${race.id}" title="Ver quem curtiu">
+                </div>
+        </div>`;
+
+    // --- Seção de Comentários - Placeholder ---
+    const commentsSectionHTML = `
+        <div class="race-card-comments">
+            <h4 class="comments-title">Comentários</h4>
+            <div class="comments-list" id="comments-list-${race.id}">
+                <div class="loader" style="font-size: 0.9em; padding: 10px 0;">Carregando...</div>
+            </div>
+            <form class="comment-form ${authUser ? '' : 'hidden'}" data-race-id="${race.id}" data-owner-uid="${currentViewingUid}">
+                <textarea class="comment-input" placeholder="Adicionar um comentário..." required maxlength="1000"></textarea>
+                <button type="submit" class="btn btn-primary btn-comment">Comentar</button>
+            </form>
+        </div>`;
+
+    // --- Estrutura Principal ---
+    card.innerHTML = `
+        <div class="race-card-header">
+            <h3>${race.raceName}</h3>
+            <span class="date">${new Date(race.date).toLocaleDateString('pt-BR', {timeZone: 'UTC', day: '2-digit', month: '2-digit', year: 'numeric'})}</span>
+        </div>
+        <div class="race-card-body">
+            ${createRunnerInfoHTML(RUNNER_1_PROFILE, runner1Data, runner1Dist, runner1Pace, 'runner1')}
+            ${(hasRunner2 && runner2Data) ? createRunnerInfoHTML(RUNNER_2_PROFILE, runner2Data, runner2Dist, runner2Pace, 'runner2') : ''}
+        </div>
+        ${mediaHTML}
+        ${socialSectionHTML}
+        ${commentsSectionHTML}
+        <div class="race-card-footer">
+            <div>
+                <span class="juntos-icon">${(hasRunner2 && race.juntos) ? '👩🏻‍❤️‍👨🏻' : ''}</span>
+                <span class="race-notes">${race.notes || ''}</span>
+            </div>
+            <div style="display: flex; align-items: center;">
+                <span class="race-distance">${raceDistDisplay}</span>
+                ${mediaButtonHTML}
+                <div class="race-controls ${canEdit ? '' : 'hidden'}">
+                    <button class="btn-control btn-edit" title="Editar">✏️</button>
+                    <button class="btn-control btn-delete" title="Excluir">🗑️</button>
+                </div>
+            </div>
+        </div>`;
+
+    // --- Listeners para Edição/Exclusão/Mídia ---
+    if(canEdit) {
+        card.querySelector('.btn-edit')?.addEventListener('click', (e) => { e.stopPropagation(); openModal(race.id); });
+        card.querySelector('.btn-delete')?.addEventListener('click', (e) => { e.stopPropagation(); deleteRace(race.id); });
+        const mediaBtn = card.querySelector('.btn-add-media');
+        if (mediaBtn) { mediaBtn.addEventListener('click', (e) => { e.stopPropagation(); openMediaUploadModal(e.currentTarget.dataset.raceId); }); }
+    }
+
+    // --- Carrega Dados de Interação (Listeners SEPARADOS V9.2) ---
+    loadAndListenRaceInteractions(race.id, card); // Mantém a chamada, mas a função interna mudou
+
+    // --- Listener para Comentários ---
+     const commentForm = card.querySelector('.comment-form');
+     if (commentForm) { commentForm.addEventListener('submit', handleRaceCommentSubmit); }
+
+     // --- Listener para Thumbnails (Lightbox V8) ---
+     const thumbnails = card.querySelectorAll('.media-thumbnail');
+     thumbnails.forEach(thumb => {
+         thumb.addEventListener('click', (e) => {
+             const raceIdClick = e.currentTarget.dataset.raceId; // Renomeado para evitar conflito
+             const startIndex = parseInt(e.currentTarget.dataset.index, 10);
+             const currentRaceData = db.races[raceIdClick]; // Acessa do estado global
+             if (currentRaceData && currentRaceData.media) {
+                 const imageUrls = Object.values(currentRaceData.media)
+                                     .sort((a, b) => a.uploadedAt - b.uploadedAt)
+                                     .map(item => item.url);
+                 openLightbox(imageUrls, startIndex);
+             }
+         });
+     });
+
+    return card;
+}
+
+function createRunnerInfoHTML(config, runnerData, distance, pace, cssClass) {
+    let timeHTML = '', paceHTML = '';
+    if(!runnerData || !runnerData.status) return '';
+
+    switch (runnerData.status) {
+        case 'completed':
+            timeHTML = `<div class="runner-time">${secondsToTime(timeToSeconds(runnerData.time))}</div>`;
+            if (pace !== 'N/A') paceHTML = `<div class="runner-pace">${pace}</div>`;
+            break;
+        case 'planned':
+            const goalTime = runnerData.goalTime || (runnerData.time && runnerData.time.includes(':') ? runnerData.time : null);
+            timeHTML = `<div class="runner-time goal">⏳ ${goalTime ? secondsToTime(timeToSeconds(goalTime)) : 'Planejada'}</div>`;
+            if (pace !== 'N/A') paceHTML = `<div class="runner-pace goal">(Meta: ${pace})</div>`;
+            break;
+        case 'skipped':
+            timeHTML = `<div class="runner-time skipped">❌ Não correu</div>`;
+            break;
+        default: timeHTML = `<div class="runner-time skipped">N/A</div>`;
+    }
+
+    if (runnerData.status === 'skipped') {
+        return `<div class="runner-info"><span class="runner-name ${cssClass}">${config.name} ${config.emoji}</span><div class="runner-details">${timeHTML}</div></div>`;
+    }
+    return `<div class="runner-info"><span class="runner-name ${cssClass}">${config.name} ${config.emoji}</span><div class="runner-details">${timeHTML}${paceHTML}</div></div>`;
+}
+
+// --- Funções do Modal e CRUD (V1 - Modificada V9.1) ---
+// Modificada para aceitar dados pré-preenchidos do calendário público
+function openModal(raceId = null, prefillData = null) {
+    dom.form.reset();
+    document.getElementById('race-id').value = '';
+    dom.btnDelete.classList.add('hidden');
+    updateProfileUI(); // Garante que nomes/visibilidade de R2 estejam corretos
+
+    if (raceId) { // Editando corrida existente
+        dom.modalTitle.textContent = 'Editar Corrida Pessoal';
+        dom.btnDelete.classList.remove('hidden');
+        const race = db.races[raceId];
+        if (!race) return;
+        document.getElementById('race-id').value = raceId;
+        document.getElementById('raceName').value = race.raceName;
+        document.getElementById('raceDate').value = race.date;
+        document.getElementById('raceDistance').value = race.distance || '';
+        document.getElementById('raceJuntos').checked = race.juntos;
+        document.getElementById('raceNotes').value = race.notes || '';
+        const runner1Data = race[RUNNER_1_KEY];
+        const runner2Data = race[RUNNER_2_KEY];
+        if(runner1Data){
+            document.getElementById('runner1Status').value = runner1Data.status || 'skipped';
+            const runner1Time = runner1Data.status === 'completed' ? runner1Data.time : (runner1Data.goalTime || runner1Data.time || '');
+            document.getElementById('runner1Time').value = normalizeTime(runner1Time) ? secondsToTime(timeToSeconds(runner1Time)) : '';
+            document.getElementById('runner1Distance').value = runner1Data.distance || '';
+        }
+        if(runner2Data && hasRunner2){
+            document.getElementById('runner2Status').value = runner2Data.status || 'skipped';
+            const runner2Time = runner2Data.status === 'completed' ? runner2Data.time : (runner2Data.goalTime || runner2Data.time || '');
+            document.getElementById('runner2Time').value = normalizeTime(runner2Time) ? secondsToTime(timeToSeconds(runner2Time)) : '';
+            document.getElementById('runner2Distance').value = runner2Data.distance || '';
+        }
+    } else if (prefillData) { // Adicionando corrida do calendário público
+         dom.modalTitle.textContent = 'Adicionar Corrida ao Histórico';
+         document.getElementById('raceName').value = prefillData.nome || '';
+         document.getElementById('raceDate').value = prefillData.data || new Date().toISOString().split('T')[0];
+         // Opcional: preencher distância se disponível na corrida pública
+         // document.getElementById('raceDistance').value = prefillData.distance || '';
+         // Assume como 'planejada' por padrão
+         document.getElementById('runner1Status').value = 'planned';
+         if(hasRunner2) document.getElementById('runner2Status').value = 'planned';
+    }
+     else { // Adicionando nova corrida manualmente
+        dom.modalTitle.textContent = 'Adicionar Nova Corrida Pessoal';
+        document.getElementById('raceDate').value = new Date().toISOString().split('T')[0];
+         // Assume como 'completa' por padrão ao adicionar manualmente
+        document.getElementById('runner1Status').value = 'completed';
+         if(hasRunner2) document.getElementById('runner2Status').value = 'completed';
+    }
+    dom.modal.showModal();
+}
+
+function closeModal() { dom.modal.close(); }
+
+// Modificada V9.2 para inicializar nós separados
+function handleFormSubmit(e) {
+    e.preventDefault();
+    if (!currentViewingUid || !authUser || currentViewingUid !== authUser.uid) { alert("Erro: Você deve estar logado para salvar."); return; }
+    const id = document.getElementById('race-id').value;
+    const date = document.getElementById('raceDate').value;
+    const runner1TimeRaw = document.getElementById('runner1Time').value;
+    const runner2TimeRaw = document.getElementById('runner2Time').value;
+    const runner1Status = document.getElementById('runner1Status').value;
+    const runner2Status = document.getElementById('runner2Status').value;
+    const raceData = {
+        date: date, year: new Date(date + 'T00:00:00').getFullYear().toString(),
+        raceName: document.getElementById('raceName').value, distance: parseFloat(document.getElementById('raceDistance').value) || null,
+        juntos: document.getElementById('raceJuntos').checked, notes: document.getElementById('raceNotes').value || null,
+        [RUNNER_1_KEY]: { status: runner1Status, time: runner1Status === 'completed' ? normalizeTime(runner1TimeRaw) : null, goalTime: runner1Status === 'planned' ? normalizeTime(runner1TimeRaw) : null, distance: parseFloat(document.getElementById('runner1Distance').value) || null },
+        [RUNNER_2_KEY]: hasRunner2 ? { status: runner2Status, time: runner2Status === 'completed' ? normalizeTime(runner2TimeRaw) : null, goalTime: runner2Status === 'planned' ? normalizeTime(runner2TimeRaw) : null, distance: parseFloat(document.getElementById('runner2Distance').value) || null } : null
+    };
+    if (id && db.races[id] && db.races[id].media) { raceData.media = db.races[id].media; }
+    const dbPath = `/users/${currentViewingUid}/races/`;
+    let promise;
+    let raceIdToReturn = id;
+
+    if (id) { // Editando corrida
+        promise = firebase.database().ref(dbPath).child(id).set(raceData);
+    } else { // Criando nova corrida
+        const newRaceRef = firebase.database().ref(dbPath).push();
+        raceIdToReturn = newRaceRef.key;
+        promise = newRaceRef.set(raceData);
+    }
+
+    promise.then(() => {
+        closeModal();
+        // Se for uma nova corrida, inicializa os nós de interação separados
+        if (!id && raceIdToReturn) {
+            const updates = {};
+            updates[`/raceLikes/${raceIdToReturn}`] = { ownerUid: currentViewingUid, likeCount: 0, likes: {}, likers: {} };
+            updates[`/raceComments/${raceIdToReturn}`] = { ownerUid: currentViewingUid, comments: {} };
+            firebase.database().ref().update(updates)
+                .catch(err => console.error("Erro ao inicializar interações separadas:", err));
+        }
+    }).catch(err => { console.error("Erro ao salvar corrida:", err); alert("Erro ao salvar: " + err.message); });
+}
+
+// Modificada V9.2 para remover nós separados
+function deleteRace(raceId) {
+    if (!currentViewingUid || !authUser || currentViewingUid !== authUser.uid) { alert("Erro: Você deve estar logado para excluir."); return; }
+    const race = db.races[raceId];
+    if (!confirm(`Tem certeza que deseja excluir esta corrida?\n\n${race.raceName} (${race.date})`)) return;
+    const updates = {};
+    updates[`/users/${currentViewingUid}/races/${raceId}`] = null;
+    updates[`/raceLikes/${raceId}`] = null; // Remove dados de likes
+    updates[`/raceComments/${raceId}`] = null; // Remove dados de comentários
+
+    firebase.database().ref().update(updates)
+        .then(() => { console.log("Corrida e interações excluídas:", raceId); closeModal(); })
+        .catch(err => { console.error("Erro ao excluir corrida/interações:", err); alert("Erro ao excluir: " + err.message); });
+}
+
+
+// --- Funções de Carregamento de Dados (V1 + V5) ---
+// (loadProfile e loadRaces permanecem as mesmas da correção V9)
+function loadProfile(uid) {
+    if (currentProfileCommentsListener) { currentProfileCommentsListener.off(); currentProfileCommentsListener = null; }
+    dom.profileCommentsList.innerHTML = '';
+    const profileRef = firebase.database().ref(`/users/${uid}/profile`);
+    profileRef.once('value', (snapshot) => {
+        db.profile = snapshot.val() || {};
+        updateProfileUI(); // Chama APENAS o que depende do perfil
+    },
+    (error) => {
+        console.error("Erro ao carregar perfil:", error);
+        db.profile = {};
+        updateProfileUI(); // Chama APENAS o que depende do perfil
+    });
+}
+
+function loadRaces(uid) {
+    currentViewingUid = uid;
+    const isOwner = authUser && authUser.uid === currentViewingUid;
+    dom.controlsSection.classList.toggle('hidden', !isOwner);
+    dom.btnEditProfile.classList.toggle('hidden', !isOwner);
+    const racesRef = firebase.database().ref(`/users/${uid}/races`);
+    db.races = {};
+    // Limpa ambos os listeners V9.2
+    Object.values(currentRaceLikesListeners).forEach(ref => ref.off());
+    Object.values(currentRaceCommentsListeners).forEach(ref => ref.off());
+    currentRaceLikesListeners = {};
+    currentRaceCommentsListeners = {};
+    dom.prGrid.innerHTML = '<div class="loader">Carregando PRs...</div>';
+    dom.summaryGrid.innerHTML = '<div class="loader">Calculando...</div>';
+    dom.historyContent.innerHTML = '<div class="loader">Carregando histórico...</div>'; // Usa historyContent
+    racesRef.off('value');
+    racesRef.on('value', (snapshot) => {
+        db.races = snapshot.val() || {};
+        renderDashboard();
+        renderHistory();
+    },
+    (error) => {
+        console.error("Erro ao carregar corridas:", error);
+        db.races = {};
+        renderDashboard();
+        renderHistory();
+    });
+}
+
+function loadPublicView() {
+    if(!authUser) { dom.headerSubtitle.textContent = "Selecione um currículo ou faça login"; dom.headerProfilePicture.src = 'icons/icon-192x192.png'; dom.headerLocation.classList.add('hidden'); dom.headerBio.classList.add('hidden'); }
+    const publicProfilesRef = firebase.database().ref('/publicProfiles');
+    publicProfilesRef.off('value');
+    publicProfilesRef.on('value', (snapshot) => {
+        const profiles = snapshot.val() || {};
+        if (dom.publicProfileListPublic) dom.publicProfileListPublic.innerHTML = '';
+        if (dom.publicProfileListLogged) dom.publicProfileListLogged.innerHTML = '';
+        if(Object.keys(profiles).length > 0) {
+            const createProfileCard = (uid, profile) => {
+                const card = document.createElement('div'); card.className = 'profile-card';
+                const runner2HTML = profile.runner2Name && profile.runner2Name.trim() !== "" ? `<h3 class="runner2-name">${profile.runner2Name}</h3>` : '';
+                const profilePicUrl = profile.profilePictureUrl || 'icons/icon-192x192.png';
+                card.innerHTML = `<img src="${profilePicUrl}" alt="Foto Perfil" class="profile-card-pic"><div class="profile-card-info"><h3>${profile.runner1Name || 'Corredor'}</h3>${runner2HTML}<p>${profile.teamName || 'Equipe'}</p></div>`;
+                card.addEventListener('click', () => { if (!authUser) { dom.loginOrPublicView.classList.add('hidden'); dom.userContent.classList.remove('hidden'); dom.btnBackToPublic.classList.remove('hidden'); dom.btnBackToMyDashboard.classList.add('hidden'); } else { dom.btnBackToPublic.classList.add('hidden'); dom.btnBackToMyDashboard.classList.remove('hidden'); } loadProfile(uid); loadRaces(uid); });
+                return card;
+            };
+            Object.entries(profiles).forEach(([uid, profile]) => { if (dom.publicProfileListPublic) { dom.publicProfileListPublic.appendChild(createProfileCard(uid, profile)); } if (dom.publicProfileListLogged && !(authUser && authUser.uid === uid)) { dom.publicProfileListLogged.appendChild(createProfileCard(uid, profile)); } });
+        } else { const noProfileMsg = '<div class="loader">Nenhum perfil público encontrado.</div>'; if (dom.publicProfileListPublic) dom.publicProfileListPublic.innerHTML = noProfileMsg; if (dom.publicProfileListLogged) dom.publicProfileListLogged.innerHTML = noProfileMsg; }
+    });
+}
+
+// --- Funções de Lógica de UI (V1 - Roteador) ---
+function showLoggedOutView() {
+    if (currentViewingUid) { firebase.database().ref(`/users/${currentViewingUid}/races`).off(); }
+    // Limpa ambos os listeners V9.2
+    Object.values(currentRaceLikesListeners).forEach(ref => ref.off()); currentRaceLikesListeners = {};
+    Object.values(currentRaceCommentsListeners).forEach(ref => ref.off()); currentRaceCommentsListeners = {};
+    if (currentProfileCommentsListener) { currentProfileCommentsListener.off(); currentProfileCommentsListener = null; }
+    firebase.database().ref('/publicProfiles').off(); firebase.database().ref('corridas').off(); firebase.database().ref('resultadosEtapas').off();
+    authUser = null; isAdmin = false; currentViewingUid = null; db = { races: {}, profile: {} };
+    dom.btnLogout.classList.add('hidden'); dom.btnBackToPublic.classList.add('hidden'); dom.btnBackToMyDashboard.classList.add('hidden');
+    dom.userInfo.classList.add('hidden'); dom.controlsSection.classList.add('hidden'); dom.btnEditProfile.classList.add('hidden');
+    dom.pendingApprovalView.classList.add('hidden'); dom.rejectedView.classList.add('hidden');
+    dom.loginOrPublicView.classList.remove('hidden'); dom.publicView.classList.remove('hidden'); dom.userContent.classList.add('hidden');
+    dom.loginError.textContent = ''; dom.loginForm.reset(); toggleLoginMode(false);
+    loadPublicView(); fetchAllData();
+}
+
+function showPendingView() {
+    dom.btnLogout.classList.remove('hidden'); dom.userInfo.classList.remove('hidden'); dom.userEmail.textContent = authUser.email;
+    dom.loginOrPublicView.classList.add('hidden'); dom.userContent.classList.add('hidden'); dom.btnBackToPublic.classList.add('hidden');
+    dom.rejectedView.classList.add('hidden'); dom.btnEditProfile.classList.add('hidden'); dom.pendingApprovalView.classList.remove('hidden');
+}
+function showRejectedView(email) {
+    dom.btnLogout.classList.remove('hidden'); dom.userInfo.classList.remove('hidden'); dom.userEmail.textContent = email;
+    dom.loginOrPublicView.classList.add('hidden'); dom.userContent.classList.add('hidden'); dom.btnBackToPublic.classList.add('hidden');
+    dom.pendingApprovalView.classList.add('hidden'); dom.btnEditProfile.classList.add('hidden'); dom.rejectedEmail.textContent = email;
+    dom.rejectedView.classList.remove('hidden');
+}
+function showUserDashboard(user) {
+    dom.btnLogout.classList.remove('hidden'); dom.userInfo.classList.remove('hidden'); dom.userEmail.textContent = user.email;
+    dom.loginOrPublicView.classList.add('hidden'); dom.pendingApprovalView.classList.add('hidden'); dom.rejectedView.classList.add('hidden');
+    dom.btnBackToPublic.classList.add('hidden'); dom.btnBackToMyDashboard.classList.add('hidden'); dom.userContent.classList.remove('hidden');
+    loadProfile(user.uid); loadRaces(user.uid); fetchAllData(); loadPublicView();
+    if (isAdmin) { dom.userInfo.classList.add('admin-user'); initializeAdminPanel(user.uid, database); }
+    else { dom.userInfo.classList.remove('admin-user'); }
+}
+
+// --- Funções de Autenticação (V1) ---
+function showLoginError(message) { dom.loginError.textContent = message; }
+function toggleLoginMode(isSigningUp) {
+    if (isSigningUp) { dom.loginTitle.textContent = "Cadastrar Novo Usuário"; dom.signupFields.classList.remove('hidden'); dom.btnLoginSubmit.classList.add('hidden'); dom.btnSignUpSubmit.classList.remove('hidden'); dom.loginToggleLink.textContent = "Já tem conta? Entrar"; }
+    else { dom.loginTitle.textContent = "Acessar Meu Currículo"; dom.signupFields.classList.add('hidden'); dom.btnLoginSubmit.classList.remove('hidden'); dom.btnSignUpSubmit.classList.add('hidden'); dom.loginToggleLink.textContent = "Não tem conta? Cadastre-se"; }
+    dom.loginError.textContent = '';
+}
+function handleSignUp(e) {
+    e.preventDefault(); const email = dom.loginEmail.value; const password = dom.loginPassword.value; const runner1Name = dom.signupRunner1Name.value;
+    dom.loginError.textContent = ''; if (password.length < 6) { showLoginError("A senha deve ter pelo menos 6 caracteres."); return; } if (!runner1Name) { showLoginError("O 'Seu nome' (Corredor 1) é obrigatório."); return; }
+    auth.createUserWithEmailAndPassword(email, password).then((userCredential) => {
+        const user = userCredential.user; const pendingRef = firebase.database().ref('/pendingApprovals/' + user.uid);
+        pendingRef.set({ email: user.email, requestDate: new Date().toISOString(), runner1Name: runner1Name, runner2Name: dom.signupRunner2Name.value || "", teamName: dom.signupTeamName.value || "" });
+        console.log("Novo usuário cadastrado:", user.uid); dom.loginForm.reset(); toggleLoginMode(false); showLoginError("Cadastro realizado! Aguardando aprovação.");
+    }).catch(err => { console.error("Erro no cadastro:", err.code, err.message); if (err.code === 'auth/email-already-in-use') { showLoginError("Este e-mail já está em uso."); } else { showLoginError("Erro ao cadastrar: " + err.message); } });
+}
+function handleSignIn(e) {
+    e.preventDefault(); const email = dom.loginEmail.value; const password = dom.loginPassword.value; dom.loginError.textContent = '';
+    auth.signInWithEmailAndPassword(email, password).catch(err => { console.error("Erro no login:", err.code, err.message); if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') { showLoginError("E-mail ou senha incorretos."); } else { showLoginError("Erro ao entrar: " + err.message); } });
+}
+function signOut() {
+    if (currentViewingUid) { firebase.database().ref(`/users/${currentViewingUid}/races`).off(); }
+    // Limpa ambos os listeners V9.2
+    Object.values(currentRaceLikesListeners).forEach(ref => ref.off()); currentRaceLikesListeners = {};
+    Object.values(currentRaceCommentsListeners).forEach(ref => ref.off()); currentRaceCommentsListeners = {};
+    if (currentProfileCommentsListener) { currentProfileCommentsListener.off(); currentProfileCommentsListener = null; }
+    firebase.database().ref('/publicProfiles').off(); firebase.database().ref('corridas').off(); firebase.database().ref('resultadosEtapas').off();
+    auth.signOut().catch(err => console.error("Erro no logout:", err));
+}
+
+// ======================================================
+// SEÇÃO V2: LÓGICA DO CALENDÁRIO PÚBLICO (Modificado V9.1)
+// ======================================================
+function fetchAllData() {
+    const dbRef = firebase.database(); dbRef.ref('corridas').off(); dbRef.ref('corridas').on('value', snapshot => { appState.allCorridas = snapshot.val() || { copaAlcer: {}, geral: {} }; renderContentV2(); }, error => console.error("Falha /corridas:", error));
+    dbRef.ref('resultadosEtapas').off(); dbRef.ref('resultadosEtapas').on('value', snapshot => { appState.resultadosEtapas = snapshot.val() || {}; renderContentV2(); }, error => console.error("Falha /resultadosEtapas:", error));
+    dbRef.ref('rankingCopaAlcer').once('value', snapshot => { appState.rankingData = snapshot.val() || {}; });
+}
+function renderContentV2() {
+    const todasCorridasCopa = Object.values(appState.allCorridas.copaAlcer || {}); const todasCorridasGerais = Object.values(appState.allCorridas.geral || {});
+    const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+    const corridasAgendadasCopa = todasCorridasCopa.filter(c => new Date(c.data + 'T00:00:00') >= hoje); const corridasAgendadasGerais = todasCorridasGerais.filter(c => new Date(c.data + 'T00:00:00') >= hoje);
+    const corridasRealizadas = [...todasCorridasCopa, ...todasCorridasGerais].filter(c => new Date(c.data + 'T00:00:00') < hoje);
+    renderCalendar(corridasAgendadasCopa, dom.copaContainerPublic, 'inscrições'); renderCalendar(corridasAgendadasGerais, dom.geralContainerPublic, 'inscrições'); renderCalendar(corridasRealizadas, dom.resultadosContainerPublic, 'resultados');
+    renderCalendar(corridasAgendadasCopa, dom.copaContainerLogged, 'inscrições'); renderCalendar(corridasAgendadasGerais, dom.geralContainerLogged, 'inscrições'); renderCalendar(corridasRealizadas, dom.resultadosContainerLogged, 'resultados');
+}
+
+// Modificada para adicionar botão "Adicionar ao Histórico" (V9.1)
+function renderCalendar(corridas, container, buttonType) {
+    if (!container) return; if (!corridas || corridas.length === 0) { container.innerHTML = `<p class="loader" style="font-size: 0.9em; color: #999;">Nenhuma corrida.</p>`; return; }
+    const sortedCorridas = corridas.sort((a, b) => { const dateA = new Date(a.data + 'T00:00:00'); const dateB = new Date(b.data + 'T00:00:00'); return buttonType === 'resultados' ? dateB - dateA : dateA - dateB; });
+    container.innerHTML = sortedCorridas.map(corrida => {
+        const dataObj = new Date(`${corrida.data}T12:00:00Z`); const dia = String(dataObj.getUTCDate()).padStart(2, '0'); const mes = dataObj.toLocaleString("pt-BR", { month: "short", timeZone: 'UTC' }).replace(".", "").toUpperCase();
+        let actionButtonHTML = '';
+        if (buttonType === 'inscrições') { actionButtonHTML = corrida.linkInscricao ? `<a href="${corrida.linkInscricao}" target="_blank" rel="noopener noreferrer" class="v2-inscricoes-button"><i class='bx bx-link-external' style="margin-right: 5px;"></i>Inscrições</a>` : `<div class="v2-race-button-disabled">Em Breve</div>`; }
+        else { actionButtonHTML = appState.resultadosEtapas[corrida.id] ? `<button class="v2-results-button" data-race-id="${corrida.id}"><i class='bx bx-table' style="margin-right: 5px;"></i>Ver Resultados</button>` : `<div class="v2-race-button-disabled">Resultados em Breve</div>`; }
+
+        // Botão Adicionar (V9.1) - Apenas se logado
+        const addRaceButtonHTML = authUser ? `<button class="v2-add-personal-button" data-race-info='${JSON.stringify({nome: corrida.nome, data: corrida.data, id: corrida.id})}'>➕ Adicionar</button>` : '';
+
+        return `<div class="v2-race-card"><div class="v2-race-date"><span class="v2-race-date-day">${dia}</span><span class="v2-race-date-month">${mes}</span></div><div class="v2-race-info"><div><h3 class="font-bold text-lg text-white">${corrida.nome}</h3><p class="text-sm text-gray-400"><i class='bx bxs-map' style="margin-right: 5px;"></i>${corrida.cidade}</p></div><div class="v2-race-buttons">${actionButtonHTML}${addRaceButtonHTML}</div></div></div>`;
+    }).join('');
+
+    // Listener para o botão de resultados (existente)
+    container.querySelectorAll('.v2-results-button').forEach(button => { button.addEventListener('click', (e) => { const raceId = e.currentTarget.dataset.raceId; showRaceResultsModal(raceId); }); });
+
+    // Listener para o novo botão "Adicionar ao Histórico" (V9.1)
+    container.querySelectorAll('.v2-add-personal-button').forEach(button => {
+        button.addEventListener('click', (e) => {
+            if (!authUser) return; // Segurança extra
+            try {
+                const raceInfo = JSON.parse(e.currentTarget.dataset.raceInfo);
+                openModal(null, raceInfo); // Chama openModal sem ID, mas com dados para pré-preencher
+            } catch (error) {
+                console.error("Erro ao parsear dados da corrida pública:", error);
             }
         });
+    });
+}
+
+function showRaceResultsModal(raceId) {
+    const race = appState.allCorridas.copaAlcer?.[raceId] || appState.allCorridas.geral?.[raceId];
+    const resultsData = appState.resultadosEtapas[raceId]; // Pode ser um array ou um objeto
+
+    if (!race || !resultsData) {
+        console.error("Dados da corrida ou resultados não encontrados para:", raceId);
+        return;
     }
 
-    // --- Navegação do Dashboard ---
-    dom.profileContentBtn.addEventListener('click', () => showDashboardContent('profile'));
-    dom.profileCommentsBtn.addEventListener('click', () => showDashboardContent('comments')); // V9.2
-    dom.historyBtn.addEventListener('click', () => showDashboardContent('history'));
-    dom.statsBtn.addEventListener('click', () => showDashboardContent('stats'));
-    dom.mediaBtn.addEventListener('click', () => showDashboardContent('media'));
+    dom.modalTitleResults.textContent = `Resultados - ${race.nome}`;
+    let contentHTML = '';
 
-    // --- Filtros de Histórico ---
-    dom.filterYear.addEventListener('change', () => loadUserProfile(appState.currentViewingUid));
-    dom.filterStatus.addEventListener('change', () => loadUserProfile(appState.currentViewingUid));
-    dom.filterRunner.addEventListener('change', () => loadUserProfile(appState.currentViewingUid));
-    
-    // --- Recolher/Expandir (V13) ---
-    dom.toggleHistoryBtn.addEventListener('click', () => toggleCollapsibleSection(dom.toggleHistoryContent, dom.toggleHistoryBtn));
-    dom.toggleCommentsBtn.addEventListener('click', () => toggleCollapsibleSection(dom.toggleCommentsContent, dom.toggleCommentsBtn));
-    loadCollapsibleState(); // Carrega o estado salvo
+    // Verifica se resultsData é um Array (formato do resultado.json)
+    if (Array.isArray(resultsData)) {
+        // Agrupa os resultados pela string exata da categoria
+        const groupedResults = resultsData.reduce((acc, atleta) => {
+            const category = atleta.category || "Categoria Desconhecida";
+            if (!acc[category]) {
+                acc[category] = [];
+            }
+            // Garante que a propriedade 'placement' exista e seja usada para ordenar
+            const placement = parseInt(atleta.placement || atleta.classificacao || "9999");
+            acc[category].push({ ...atleta, placement: placement }); // Adiciona 'placement' numérico
+            return acc;
+        }, {});
 
-    // --- CRUD Modal Corrida ---
-    dom.btnAddRace.addEventListener('click', () => openRaceModal());
-    dom.btnSaveRace.addEventListener('click', handleRaceSave);
-    dom.btnDeleteRace.addEventListener('click', handleRaceDelete);
-    dom.btnCloseRaceModal.addEventListener('click', closeRaceModal);
-    dom.raceModalOverlay.addEventListener('click', closeRaceModal);
-    dom.juntosCheckbox.addEventListener('change', (e) => {
-        // Sincroniza status se "juntos" for marcado (V3.7)
-        if (e.target.checked) {
-            dom.raceStatusRunner2.value = dom.raceStatusRunner1.value;
-        }
-    });
+        // Ordena as categorias (opcional, mas pode ser útil)
+        const sortedCategories = Object.keys(groupedResults).sort();
 
-    // --- CRUD Modal Perfil ---
-    dom.btnEditProfile.addEventListener('click', openProfileModal);
-    dom.profileEditForm.addEventListener('submit', handleProfileSave);
-    dom.btnSaveProfile.addEventListener('click', handleProfileSave);
-    dom.btnCloseProfileModal.addEventListener('click', closeProfileModal);
-    dom.profileModalOverlay.addEventListener('click', closeProfileModal);
-    dom.profilePictureUpload.addEventListener('change', handleProfilePictureUpload); // Upload de Foto de Perfil
+        // Gera o HTML a partir dos grupos
+        sortedCategories.forEach(category => {
+            const atletas = groupedResults[category];
+            // Ordena atletas dentro da categoria pela colocação ('placement')
+            atletas.sort((a, b) => a.placement - b.placement);
 
-    // --- CRUD Modal Mídia ---
-    dom.btnAddMedia.addEventListener('click', () => openMediaUploadModal(null, "Nova Mídia")); // Botão principal
-    dom.mediaUploadFile.addEventListener('change', handleMediaFileChange);
-    dom.mediaUploadForm.addEventListener('submit', handleMediaUpload);
-    dom.btnSubmitMedia.addEventListener('click', handleMediaUpload);
-    dom.btnCloseMediaModal.addEventListener('click', closeMediaUploadModal);
-    dom.mediaModalOverlay.addEventListener('click', closeMediaUploadModal);
-
-    // --- Modal de Resultados (V9.3) ---
-    // (Listener de clique é adicionado dinamicamente)
-    dom.btnCloseResultsModal.addEventListener('click', () => {
-        dom.resultsModal.classList.add('hidden');
-        dom.resultsModalOverlay.classList.add('hidden');
-    });
-    dom.resultsModalOverlay.addEventListener('click', () => {
-        dom.resultsModal.classList.add('hidden');
-        dom.resultsModalOverlay.classList.add('hidden');
-    });
-    // Filtro de Nome (V9.5)
-    dom.resultsModalFilterName.addEventListener('input', (e) => {
-        const searchTerm = e.target.value.toLowerCase();
-        const rows = dom.resultsModalContent.querySelectorAll('tbody tr');
-        rows.forEach(row => {
-            const name = (row.cells[1] ? row.cells[1].textContent.toLowerCase() : '');
-            const team = (row.cells[2] ? row.cells[2].textContent.toLowerCase() : '');
-            
-            if (name.includes(searchTerm) || team.includes(searchTerm)) {
-                row.style.display = '';
-            } else {
-                row.style.display = 'none';
+            if (atletas.length > 0) {
+                contentHTML += `<h3 class="v2-modal-category-title">${category}</h3>`;
+                // --- INÍCIO TAREFA 3 (Modificação) ---
+                contentHTML += `<div style="overflow-x: auto;"><table class="v2-results-table"><thead><tr><th>#</th><th>Atleta</th><th>Equipe</th><th>Tempo</th><th>Class. Cat.</th></tr></thead><tbody>`;
+                contentHTML += atletas.map(atleta => `
+                    <tr>
+                        <td class="font-medium">${atleta.placement}</td>
+                        <td>${atleta.name || atleta.nome || 'N/A'}</td>
+                        <td style="color: #b0b0b0;">${atleta.team || atleta.assessoria || 'Individual'}</td>
+                        <td style="font-family: monospace;">${atleta.time || atleta.tempo || 'N/A'}</td>
+                        <td style="color: #c5cae9;">${atleta.placement_info || 'N/A'}</td>
+                    </tr>`).join('');
+                // --- FIM TAREFA 3 (Modificação) ---
+                contentHTML += `</tbody></table></div>`;
             }
         });
-    });
 
-    // --- Ações Sociais (V9.2) ---
-    dom.raceCommentsForm.addEventListener('submit', handleRaceCommentSubmit);
-    dom.btnCloseRaceCommentsModal.addEventListener('click', closeRaceCommentsModal);
-    dom.raceCommentsModalOverlay.addEventListener('click', closeRaceCommentsModal);
-    
-    dom.profileCommentsForm.addEventListener('submit', handleProfileCommentSubmit); // V9.2 (Mural)
-    
-    dom.btnCloseRaceLikesModal.addEventListener('click', closeRaceLikesModal);
-    dom.raceLikesModalOverlay.addEventListener('click', closeRaceLikesModal);
+    } else if (typeof resultsData === 'object' && resultsData !== null) {
+        // Lógica original para dados estruturados (mantida para compatibilidade)
+        for (const categoryKey in resultsData) {
+            if (resultsData.hasOwnProperty(categoryKey)) {
+                for (const genderKey in resultsData[categoryKey]) {
+                    if (resultsData[categoryKey].hasOwnProperty(genderKey)) {
+                        const atletas = resultsData[categoryKey][genderKey];
+                        if (atletas && Array.isArray(atletas) && atletas.length > 0) {
+                            // Ordena atletas pela 'classificacao'
+                            atletas.sort((a,b) => parseInt(a.classificacao || "9999") - parseInt(b.classificacao || "9999"));
 
-    // --- Lightbox (V8) ---
-    dom.lightboxClose.addEventListener('click', closeLightbox);
-    dom.lightboxOverlay.addEventListener('click', closeLightbox);
-    dom.lightboxPrev.addEventListener('click', showPrevLightbox);
-    dom.lightboxNext.addEventListener('click', showNextLightbox);
+                            contentHTML += `<h3 class="v2-modal-category-title">${categoryKey} - ${genderKey.charAt(0).toUpperCase() + genderKey.slice(1)}</h3>`;
+                            contentHTML += `<div style="overflow-x: auto;"><table class="v2-results-table"><thead><tr><th>#</th><th>Atleta</th><th>Equipe</th><th>Tempo</th></tr></thead><tbody>`;
+                            contentHTML += atletas.map(atleta => `
+                                <tr>
+                                    <td class="font-medium">${atleta.classificacao}</td>
+                                    <td>${atleta.nome || 'N/A'}</td>
+                                    <td style="color: #b0b0b0;">${atleta.assessoria || 'Individual'}</td>
+                                    <td style="font-family: monospace;">${atleta.tempo || 'N/A'}</td>
+                                </tr>`).join('');
+                            contentHTML += `</tbody></table></div>`;
+                        }
+                    }
+                }
+            }
+        }
+    }
 
-    // --- Filtros de Conteúdo Público (V9.7) ---
-    dom.btnShowRanking.addEventListener('click', () => showViewPublicContent('ranking'));
-    dom.btnShowCopaAlcer.addEventListener('click', () => showViewPublicContent('copaAlcer'));
-    dom.btnShowGeral.addEventListener('click', () => showViewPublicContent('geral'));
+    dom.modalContentResults.innerHTML = contentHTML || '<p>Nenhum resultado encontrado ou formato inválido.</p>';
+    dom.modalSearchInput.value = '';
+    filterResultsInModal(); // Aplica filtro inicial (mostrar tudo)
+    dom.modalOverlay.classList.remove('hidden');
+}
 
-    // --- Listeners de Clique Dinâmico (Delegação de Eventos) ---
 
-    // Lista Pública (clicar em um perfil)
-    dom.publicListContainer.addEventListener('click', (e) => {
-        const item = e.target.closest('.public-list-item');
-        if (item && item.dataset.uid) {
-            loadUserProfile(item.dataset.uid);
+function filterResultsInModal() {
+    const searchTerm = dom.modalSearchInput.value.toUpperCase();
+    dom.modalContentResults.querySelectorAll('.v2-results-table tbody tr').forEach(row => {
+        // Verifica se a linha existe e tem as células esperadas
+        if (row && row.cells && row.cells.length > 1) {
+            const athleteName = row.cells[1].textContent.toUpperCase();
+            row.style.display = athleteName.includes(searchTerm) ? '' : 'none';
+        } else {
+            // Opcional: Logar ou tratar linhas inválidas se necessário
+             console.warn("Linha de tabela inválida encontrada durante a filtragem:", row);
         }
     });
+}
 
-    // Dashboard (Histórico e Mídia)
-    dom.dashboardView.addEventListener('click', (e) => {
-        
-        // Botão Editar Corrida (Histórico)
-        const editButton = e.target.closest('.btn-edit-race');
-        if (editButton) {
-            e.stopPropagation();
-            openRaceModal(editButton.dataset.raceId);
-            return;
-        }
-        
-        // Botão Adicionar Mídia (Histórico)
-        const addMediaButton = e.target.closest('.btn-add-media-direct');
-        if (addMediaButton) {
-            e.stopPropagation();
-            openMediaUploadModal(addMediaButton.dataset.raceId, addMediaButton.dataset.raceName);
-            return;
-        }
+function closeResultsModal() { dom.modalOverlay.classList.add('hidden'); }
 
-        // Abrir Lightbox (Mídia)
-        const mediaThumb = e.target.closest('.media-thumbnail');
-        if (mediaThumb && mediaThumb.dataset.index) {
-            // Não abrir se clicar no botão de excluir
-            if (e.target.closest('.media-delete-btn')) {
+// ======================================================
+// SEÇÃO V4 + V8: LÓGICA DE UPLOAD DE MÍDIA (CLOUDINARY)
+// ATUALIZADA (V9.3) COM TAREFA 2 (Excluir Mídia)
+// ======================================================
+
+function openMediaUploadModal(raceId) {
+    const race = db.races[raceId]; if (!race) { console.error("Corrida não encontrada:", raceId); return; }
+    dom.mediaForm.reset(); dom.mediaRaceIdInput.value = raceId; dom.mediaModalTitle.textContent = `Gerenciar Mídia: ${race.raceName}`;
+    dom.mediaPreviewContainer.innerHTML = ''; dom.mediaUploadStatus.textContent = '';
+    dom.mediaUploadStatus.className = 'upload-status'; dom.btnConfirmMediaUpload.disabled = true; // Desabilita upload até selecionar NOVOS arquivos
+
+    // --- INÍCIO TAREFA 2: Carregar mídias existentes ---
+    // --- CORREÇÃO V9.4: Adiciona verificação antes de Object.entries e .sort ---
+    const mediaItems = (race.media ? Object.entries(race.media).sort(([,a], [,b]) => a.uploadedAt - b.uploadedAt) : []);
+    
+    if (mediaItems.length > 0) {
+        dom.mediaPreviewContainer.style.display = 'grid'; // Mostra o grid
+        mediaItems.forEach(([mediaId, item]) => {
+            const previewItem = document.createElement('div');
+            previewItem.className = 'media-preview-item existing'; // Classe 'existing'
+            previewItem.innerHTML = `
+                <img src="${item.url}" alt="Mídia existente">
+                <button type="button" class="btn-delete-media" data-media-id="${mediaId}" data-media-url="${item.url}" title="Excluir esta mídia">×</button>
+            `;
+            dom.mediaPreviewContainer.appendChild(previewItem);
+        });
+
+        // Adiciona listeners aos novos botões de exclusão
+        dom.mediaPreviewContainer.querySelectorAll('.btn-delete-media').forEach(btn => {
+            btn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                handleMediaDelete(e.target.closest('.media-delete-btn').dataset.mediaId, e.target.closest('.media-delete-btn').dataset.raceId);
-                return;
+                const mediaId = e.currentTarget.dataset.mediaId;
+                const mediaUrl = e.currentTarget.dataset.mediaUrl;
+                // Chama a nova função de exclusão
+                deleteMediaItem(raceId, mediaId, mediaUrl, e.currentTarget.parentElement);
+            });
+        });
+    } else {
+         // Se não houver mídias existentes, garante que o container esteja oculto (até que novos arquivos sejam selecionados)
+         dom.mediaPreviewContainer.style.display = 'none';
+    }
+    // --- FIM TAREFA 2 ---
+
+    dom.mediaModal.showModal();
+}
+
+function closeMediaUploadModal() { dom.mediaModal.close(); }
+
+function handleMediaFileSelect(e) {
+    const files = e.target.files;
+    
+    // --- INÍCIO TAREFA 2 (Modificação) ---
+    // Limpa apenas os previews de NOVOS arquivos (que não têm a classe .existing)
+    dom.mediaPreviewContainer.querySelectorAll('.media-preview-item:not(.existing)').forEach(el => el.remove());
+    // --- FIM TAREFA 2 (Modificação) ---
+
+    dom.mediaUploadStatus.textContent = ''; dom.mediaUploadStatus.className = 'upload-status'; let hasValidFiles = false;
+    
+    if (files && files.length > 0) {
+        dom.mediaPreviewContainer.style.display = 'grid'; // Garante que o grid esteja visível
+        Array.from(files).forEach(file => {
+            if (file.type.startsWith('image/')) {
+                hasValidFiles = true; const reader = new FileReader(); reader.onload = function(event) {
+                    const previewItem = document.createElement('div'); 
+                    previewItem.className = 'media-preview-item'; // SEM a classe 'existing'
+                    const img = document.createElement('img'); img.src = event.target.result; img.alt = `Preview ${file.name}`; previewItem.appendChild(img); dom.mediaPreviewContainer.appendChild(previewItem);
+                }; reader.readAsDataURL(file);
+            } else { console.warn(`Arquivo ignorado: ${file.name}`); } });
+        if (!hasValidFiles) { updateMediaUploadStatus("Nenhuma imagem válida.", "error"); }
+    } else {
+        // Se não houver novos arquivos, e também não houver arquivos existentes, esconde o grid
+        if (dom.mediaPreviewContainer.querySelectorAll('.media-preview-item.existing').length === 0) {
+            dom.mediaPreviewContainer.style.display = 'none';
+        }
+    } 
+    
+    // Habilita o botão de upload SOMENTE se houver NOVOS arquivos válidos
+    dom.btnConfirmMediaUpload.disabled = !hasValidFiles;
+}
+
+async function handleMediaUploadSubmit(e) {
+    e.preventDefault(); const files = Array.from(dom.mediaFileInput.files).filter(f => f.type.startsWith('image/')); const raceId = dom.mediaRaceIdInput.value;
+    if (files.length === 0 || !raceId) { updateMediaUploadStatus("Selecione imagens.", "error"); return; }
+    dom.btnConfirmMediaUpload.disabled = true; let successCount = 0; let errorCount = 0;
+    for (const file of files) { updateMediaUploadStatus(`Enviando ${successCount + errorCount + 1}/${files.length}: ${file.name}...`, "loading"); try {
+        const formData = new FormData(); formData.append('file', file); formData.append('upload_preset', CLOUDINARY_PRESET);
+        const response = await fetch(CLOUDINARY_URL, { method: 'POST', body: formData }); const data = await response.json();
+        if (!data.secure_url) { throw new Error(data.error?.message || `Inválida resp Cloudinary ${file.name}`); }
+        await saveMediaUrlToFirebase(raceId, data.secure_url); successCount++;
+    } catch (err) { console.error(`Erro upload ${file.name}:`, err); errorCount++; } }
+    if (errorCount === 0) { updateMediaUploadStatus(`${successCount} imagem(ns) enviada(s)!`, "success"); }
+    else { updateMediaUploadStatus(`${successCount} enviada(s), ${errorCount} falha(s).`, "error"); }
+    setTimeout(() => { closeMediaUploadModal(); }, 2000);
+}
+function saveMediaUrlToFirebase(raceId, url) {
+    return new Promise((resolve, reject) => { const uid = authUser?.uid; if (!uid) { updateMediaUploadStatus("Erro: Não autenticado.", "error"); return reject(new Error("Não autenticado.")); }
+        const mediaRef = firebase.database().ref(`/users/${uid}/races/${raceId}/media`).push(); const mediaData = { id: mediaRef.key, url: url, type: "image", uploadedAt: firebase.database.ServerValue.TIMESTAMP };
+        mediaRef.set(mediaData).then(() => { console.log("Mídia salva:", url); resolve(); }).catch(err => { console.error("Erro Firebase:", err); updateMediaUploadStatus(`Erro salvar mídia: ${err.message}`, "error"); reject(err); }); });
+}
+function updateMediaUploadStatus(message, type) { dom.mediaUploadStatus.textContent = message; dom.mediaUploadStatus.className = 'upload-status'; if (type) { dom.mediaUploadStatus.classList.add(type); } }
+
+// --- INÍCIO TAREFA 2: Nova Função ---
+function deleteMediaItem(raceId, mediaId, mediaUrl, element) {
+    // Verifica permissão
+    if (!authUser || authUser.uid !== currentViewingUid) {
+        alert("Erro: Você não tem permissão para excluir esta mídia.");
+        return;
+    }
+    
+    if (!confirm("Tem certeza que deseja excluir esta foto?\n\nEsta ação não pode ser desfeita.")) {
+        return;
+    }
+
+    // Define o caminho para o nó da mídia no Firebase
+    const mediaRef = firebase.database().ref(`/users/${currentViewingUid}/races/${raceId}/media/${mediaId}`);
+    
+    // Remove a referência do Firebase
+    mediaRef.remove()
+        .then(() => {
+            console.log("Mídia removida do Firebase:", mediaId);
+            // Remove o elemento da UI
+            if (element) {
+                element.remove();
             }
-            openLightbox(parseInt(mediaThumb.dataset.index, 10));
-            return;
-        }
-        
-        // V9.2: Ações Sociais (Likes e Comentários)
-        handleSocialClicks(e);
+            // Atualiza status no modal
+            updateMediaUploadStatus("Mídia excluída.", "success");
+            // Se foi a última foto, esconde o container
+            if (dom.mediaPreviewContainer.querySelectorAll('.media-preview-item').length === 0) {
+                 dom.mediaPreviewContainer.style.display = 'none';
+            }
+        })
+        .catch(err => {
+            console.error("Erro ao excluir mídia do Firebase:", err);
+            alert("Erro ao excluir mídia: " + err.message);
+            updateMediaUploadStatus(`Erro ao excluir: ${err.message}`, "error");
+        });
+    
+    // NOTA: A exclusão do arquivo físico do Cloudinary não é implementada
+    // por razões de segurança (exigiria API secret no frontend).
+    // A remoção da referência do Firebase é suficiente para o app.
+}
+// --- FIM TAREFA 2 ---
 
-        // V9.3: Mostrar Modal de Resultados
-        const resultsButton = e.target.closest('.results-button');
-        if (resultsButton) {
-            e.preventDefault(); // Impede o link de navegar
-            renderResultadosEtapas(resultsButton.dataset.raceId, resultsButton.dataset.raceName);
-            return;
+
+// ======================================================
+// SEÇÃO V5: LÓGICA DE EDIÇÃO DE PERFIL
+// ======================================================
+function openProfileEditModal() { if (!authUser || authUser.uid !== currentViewingUid) return; populateProfileEditModal(); dom.profileEditModal.showModal(); }
+function closeProfileEditModal() { dom.profileEditModal.close(); }
+function populateProfileEditModal() {
+    const profile = db.profile || {}; dom.profileEditRunner1Name.textContent = profile.runner1Name || 'Corredor 1';
+    if (profile.runner2Name && profile.runner2Name.trim() !== "") { dom.profileEditRunner2Name.textContent = profile.runner2Name; dom.profileEditRunner2NameSeparator.style.display = ''; dom.profileEditRunner2Name.style.display = ''; }
+    else { dom.profileEditRunner2Name.textContent = ''; dom.profileEditRunner2NameSeparator.style.display = 'none'; dom.profileEditRunner2Name.style.display = 'none'; }
+    dom.profileEditTeam.value = profile.teamName || ''; dom.profileEditBio.value = profile.bio || ''; dom.profileEditLocation.value = profile.location || ''; dom.profileEditBirthdate.value = profile.birthdate || '';
+    if (profile.profilePictureUrl) { dom.profileEditPicturePreview.src = profile.profilePictureUrl; dom.profileEditPicturePreviewContainer.style.display = 'block'; }
+    else { dom.profileEditPicturePreview.src = ''; dom.profileEditPicturePreviewContainer.style.display = 'none'; }
+    dom.profileEditPictureInput.value = ''; dom.profilePictureUploadStatus.textContent = ''; dom.profilePictureUploadStatus.className = 'upload-status'; dom.btnSaveProfileEdit.disabled = false;
+}
+function handleProfilePictureSelect(e) {
+    const file = e.target.files[0]; if (file && file.type.startsWith('image/')) { const reader = new FileReader(); reader.onload = function(event) { dom.profileEditPicturePreview.src = event.target.result; dom.profileEditPicturePreviewContainer.style.display = 'block'; }; reader.readAsDataURL(file); dom.profilePictureUploadStatus.textContent = ''; }
+    else { dom.profileEditPicturePreview.src = db.profile?.profilePictureUrl || ''; dom.profileEditPicturePreviewContainer.style.display = db.profile?.profilePictureUrl ? 'block' : 'none'; if (file) { updateProfilePictureUploadStatus("Selecione imagem.", "error"); } }
+}
+function handleProfileEditSubmit(e) {
+    e.preventDefault(); if (!authUser || authUser.uid !== currentViewingUid) return; dom.btnSaveProfileEdit.disabled = true;
+    const newProfileData = { runner1Name: db.profile.runner1Name || '', runner2Name: db.profile.runner2Name || '', teamName: dom.profileEditTeam.value.trim() || 'Equipe', bio: dom.profileEditBio.value.trim() || null, location: dom.profileEditLocation.value.trim() || null, birthdate: dom.profileEditBirthdate.value || null, profilePictureUrl: db.profile.profilePictureUrl || null };
+    const file = dom.profileEditPictureInput.files[0];
+    const saveTextData = () => { updateProfilePictureUploadStatus("Salvando...", "loading"); const updates = {}; updates[`/users/${authUser.uid}/profile`] = newProfileData; updates[`/publicProfiles/${authUser.uid}`] = newProfileData; return firebase.database().ref().update(updates).then(() => { db.profile = { ...db.profile, ...newProfileData }; updateProfilePictureUploadStatus("Atualizado!", "success"); setTimeout(closeProfileEditModal, 1500); renderAllV1Profile(); }).catch(err => { console.error("Erro salvar perfil:", err); updateProfilePictureUploadStatus(`Erro: ${err.message}`, "error"); dom.btnSaveProfileEdit.disabled = false; }); };
+    if (file && file.type.startsWith('image/')) { uploadProfilePicture(file, (newUrl) => { if (newUrl) { newProfileData.profilePictureUrl = newUrl; saveTextData(); } else { dom.btnSaveProfileEdit.disabled = false; } }); }
+    else { saveTextData(); }
+}
+function uploadProfilePicture(file, callback) {
+    updateProfilePictureUploadStatus("Enviando foto...", "loading"); const formData = new FormData(); formData.append('file', file); formData.append('upload_preset', CLOUDINARY_PRESET);
+    fetch(CLOUDINARY_URL, { method: 'POST', body: formData }).then(response => response.json()).then(data => { if (!data.secure_url) { throw new Error(data.error?.message || "Resp Cloudinary inválida."); } updateProfilePictureUploadStatus("Foto enviada!", "loading"); callback(data.secure_url); }).catch(err => { console.error("Erro upload foto perfil:", err); updateProfilePictureUploadStatus(`Erro upload: ${err.message}`, "error"); callback(null); });
+}
+function updateProfilePictureUploadStatus(message, type) { dom.profilePictureUploadStatus.textContent = message; dom.profilePictureUploadStatus.className = 'upload-status'; if (type) { dom.profilePictureUploadStatus.classList.add(type); } }
+
+// ======================================================
+// SEÇÃO V9.2: LÓGICA DE CURTIDAS (ESTRUTURA SEPARADA)
+// ======================================================
+function toggleLike(likeButtonElement) {
+    if (!authUser) { alert("Login necessário."); return; }
+    const raceId = likeButtonElement.dataset.raceId;
+    const ownerUid = likeButtonElement.dataset.ownerUid; // Pega o ownerUid do botão (definido no createRaceCard)
+    const currentUserUid = authUser.uid;
+
+    if (!raceId || !ownerUid) {
+        console.error("Faltando data attributes (raceId ou ownerUid) no botão de like.");
+        alert("Erro ao curtir/descurtir (dados faltando).");
+        return;
+    }
+
+    const likesRef = firebase.database().ref(`/raceLikes/${raceId}`); // Caminho novo
+
+    firebase.database().ref(`/publicProfiles/${currentUserUid}`).once('value', profileSnapshot => {
+        const currentUserProfile = profileSnapshot.val() || {};
+        const currentUserName = currentUserProfile.runner1Name || "Usuário";
+        const currentUserPic = currentUserProfile.profilePictureUrl || null;
+
+        likesRef.transaction(currentLikesData => {
+            if (currentLikesData === null) {
+                // Se o nó não existe, cria-o (geralmente inicializado ao criar a corrida, mas como fallback)
+                const likerInfo = { name: currentUserName, pic: currentUserPic };
+                return { ownerUid: ownerUid, likeCount: 1, likes: { [currentUserUid]: true }, likers: { [currentUserUid]: likerInfo } };
+            }
+
+            // Garante que as propriedades existam
+            currentLikesData.likes = currentLikesData.likes || {};
+            currentLikesData.likers = currentLikesData.likers || {};
+            currentLikesData.likeCount = currentLikesData.likeCount || 0;
+            if (!currentLikesData.ownerUid) currentLikesData.ownerUid = ownerUid; // Garante ownerUid
+
+            // Alterna o like
+            if (currentLikesData.likes[currentUserUid]) {
+                currentLikesData.likeCount--;
+                currentLikesData.likes[currentUserUid] = null; // Remove o like
+                currentLikesData.likers[currentUserUid] = null; // Remove dos likers
+            } else {
+                currentLikesData.likeCount++;
+                currentLikesData.likes[currentUserUid] = true; // Adiciona o like
+                currentLikesData.likers[currentUserUid] = { name: currentUserName, pic: currentUserPic }; // Adiciona aos likers
+            }
+            return currentLikesData; // Retorna os dados modificados para a transação
+        }, (error, committed, snapshot) => {
+            if (error) {
+                console.error('Falha like transaction:', error);
+                alert("Erro ao curtir/descurtir.");
+            } else if (committed) {
+                console.log('Like/Unlike transaction OK!');
+                // A UI será atualizada pelo listener em loadAndListenRaceInteractions
+            } else {
+                console.log('Like transaction abortada.');
+            }
+        });
+    });
+}
+
+
+function updateLikeButtonUI(buttonElement, count, liked) {
+    const iconElement = buttonElement.querySelector('i');
+    const countElement = buttonElement.nextElementSibling; // Assume que o span de contagem é o próximo irmão
+
+    buttonElement.classList.toggle('liked', liked);
+    if (iconElement) {
+        iconElement.classList.remove('bx-heart', 'bxs-heart', 'bx-loader-alt', 'bx-spin', 'bx-error-circle'); // Limpa ícones
+        iconElement.classList.add(liked ? 'bxs-heart' : 'bx-heart');
+    }
+    if (countElement && countElement.classList.contains('like-count')) {
+        countElement.textContent = count;
+    }
+    buttonElement.disabled = !authUser; // Habilita/desabilita baseado no login
+}
+
+function updateLikersPreview(previewContainer, likersData, raceId) {
+    if (!previewContainer) return;
+    previewContainer.innerHTML = '';
+    const likerUids = likersData ? Object.keys(likersData) : [];
+    const maxPreview = 3;
+
+    likerUids.slice(0, maxPreview).forEach(uid => {
+        const liker = likersData[uid];
+        if (liker && liker.name) { // Verifica se liker e nome existem
+            const img = document.createElement('img');
+            img.src = liker.pic || 'icons/icon-96x96.png';
+            img.alt = liker.name;
+            img.title = liker.name;
+            img.className = 'liker-avatar';
+            previewContainer.appendChild(img);
         }
-        
-        // Clicar em links de perfil (nos comentários)
-        const profileLink = e.target.closest('[data-uid]');
-        if (profileLink && (profileLink.tagName === 'STRONG' || profileLink.tagName === 'IMG')) {
-            const uidToLoad = profileLink.dataset.uid;
-            if (uidToLoad !== appState.currentViewingUid) {
-                // Fecha modais se estiverem abertos
-                closeRaceCommentsModal();
-                closeRaceLikesModal();
-                loadUserProfile(uidToLoad);
+    });
+
+    if (likerUids.length > maxPreview) {
+        const moreSpan = document.createElement('span');
+        moreSpan.className = 'likers-more';
+        moreSpan.textContent = `+${likerUids.length - maxPreview}`;
+        moreSpan.title = "Ver todos";
+        moreSpan.dataset.raceId = raceId; // Adiciona raceId para o modal
+        if (!moreSpan.listenerAdded) {
+            moreSpan.addEventListener('click', (e) => {
+                 e.stopPropagation();
+                 showLikersModal(e.currentTarget.dataset.raceId);
+            });
+            moreSpan.listenerAdded = true;
+        }
+        previewContainer.appendChild(moreSpan);
+    }
+}
+
+
+// Modificada V9.2 para buscar de /raceLikes
+function showLikersModal(raceId) {
+    const likesRef = firebase.database().ref(`/raceLikes/${raceId}`); // Caminho novo
+    const race = db.races[raceId]; // Pega dados da corrida do cache local
+    if (!race) {
+        console.error("Dados da corrida não encontrados no cache local para:", raceId);
+        return;
+    }
+
+    dom.likersModalTitle.textContent = `Curtidas em ${race.raceName}`;
+    dom.likersModalList.innerHTML = '<div class="loader">Carregando...</div>';
+    dom.likersModal.showModal();
+
+    likesRef.child('likers').once('value', snapshot => {
+        const likersData = snapshot.val();
+        if (likersData) {
+            dom.likersModalList.innerHTML = Object.entries(likersData)
+                .map(([uid, liker]) => {
+                    if (!liker || !liker.name) return ''; // Ignora entradas inválidas
+                    const pic = liker.pic || 'icons/icon-96x96.png';
+                    return `<div class="liker-item"><img src="${pic}" alt="${liker.name}"><span>${liker.name}</span></div>`;
+                })
+                .join('');
+        } else {
+            dom.likersModalList.innerHTML = '<p>Ninguém curtiu ainda.</p>';
+        }
+    }, error => {
+        console.error("Erro ao buscar likers:", error);
+        dom.likersModalList.innerHTML = '<p style="color: red;">Erro ao carregar curtidas.</p>';
+    });
+}
+
+function closeLikersModal() { dom.likersModal.close(); }
+
+// ======================================================
+// SEÇÃO V9.2: LÓGICA DE COMENTÁRIOS (ESTRUTURA SEPARADA)
+// ======================================================
+
+// **Modificada V9.2:** Agora usa dois listeners separados
+function loadAndListenRaceInteractions(raceId, cardElement) {
+    const likeButtonElement = cardElement.querySelector('.like-button');
+    const likeCountElement = cardElement.querySelector('.like-count');
+    const likersPreviewElement = cardElement.querySelector('.likers-preview');
+    const commentsListElement = cardElement.querySelector(`#comments-list-${raceId}`);
+    const ownerUidFromCard = cardElement.dataset.ownerUid; // UID do dono do perfil (dono da corrida)
+
+    // --- Listener para Likes ---
+    const likesRef = firebase.database().ref(`/raceLikes/${raceId}`);
+    if (currentRaceLikesListeners[raceId]) {
+        currentRaceLikesListeners[raceId].off(); // Remove listener antigo de likes
+    }
+    currentRaceLikesListeners[raceId] = likesRef;
+    likesRef.on('value', snapshot => {
+        const likesData = snapshot.val();
+        const likeCount = likesData?.likeCount || 0;
+        const userLiked = authUser && (likesData?.likes?.[authUser.uid] || false);
+        const likers = likesData?.likers || {};
+        const ownerUid = likesData?.ownerUid || ownerUidFromCard; // Pega ownerUid dos dados ou do card
+
+        // Atualiza UI de Likes
+        if (likeButtonElement) {
+            likeButtonElement.dataset.ownerUid = ownerUid; // Garante que o botão tenha o ownerUid correto
+            updateLikeButtonUI(likeButtonElement, likeCount, userLiked);
+            if (!likeButtonElement.listenerAdded) {
+                likeButtonElement.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    toggleLike(e.currentTarget);
+                });
+                likeButtonElement.listenerAdded = true;
             }
         }
+        if (likeCountElement) {
+            likeCountElement.dataset.raceId = raceId;
+            if (!likeCountElement.listenerAdded) {
+                 likeCountElement.addEventListener('click', (e) => {
+                     e.stopPropagation();
+                     if (parseInt(e.currentTarget.textContent, 10) > 0) {
+                        showLikersModal(e.currentTarget.dataset.raceId);
+                     }
+                 });
+                 likeCountElement.listenerAdded = true;
+            }
+        }
+        if (likersPreviewElement) {
+            likersPreviewElement.dataset.raceId = raceId; // Garante raceId
+            updateLikersPreview(likersPreviewElement, likers, raceId);
+            if (!likersPreviewElement.listenerAdded) {
+                 likersPreviewElement.addEventListener('click', (e) => {
+                     e.stopPropagation();
+                      if (parseInt(likeCountElement?.textContent || '0', 10) > 0) { // Verifica se há likes antes de abrir
+                         showLikersModal(e.currentTarget.dataset.raceId);
+                      }
+                 });
+                 likersPreviewElement.listenerAdded = true;
+            }
+        }
+
+    }, error => {
+        console.error(`Erro ao carregar likes para race ${raceId}:`, error);
+        if (likeButtonElement) { likeButtonElement.innerHTML = `<i class='bx bx-error-circle'></i>`; likeButtonElement.disabled = true; }
+        if (likeCountElement) likeCountElement.textContent = 'X';
     });
-    
-    // View Pública (Resultados)
-    dom.loginOrPublicView.addEventListener('click', (e) => {
-        const resultsButton = e.target.closest('.results-button');
-        if (resultsButton) {
-            e.preventDefault(); // Impede o link de navegar
-            renderResultadosEtapas(resultsButton.dataset.raceId, resultsButton.dataset.raceName);
+
+    // --- Listener para Comentários ---
+    const commentsRef = firebase.database().ref(`/raceComments/${raceId}/comments`);
+    // Também busca o ownerUid do nó de comentários uma vez para usar na exclusão
+    let commentOwnerUid = ownerUidFromCard; // Usa do card como fallback inicial
+    firebase.database().ref(`/raceComments/${raceId}/ownerUid`).once('value', ownerSnap => {
+        if(ownerSnap.exists()) commentOwnerUid = ownerSnap.val();
+
+        // Agora configura o listener de comentários
+        if (currentRaceCommentsListeners[raceId]) {
+            currentRaceCommentsListeners[raceId].off(); // Remove listener antigo de comentários
+        }
+        currentRaceCommentsListeners[raceId] = commentsRef;
+        commentsRef.orderByChild('timestamp').on('value', snapshot => {
+            const comments = snapshot.val() || {};
+            const commentEntries = Object.entries(comments).sort(([,a], [,b]) => a.timestamp - b.timestamp);
+
+            if (commentsListElement) {
+                commentsListElement.innerHTML = ''; // Limpa lista
+                if (commentEntries.length === 0) {
+                     commentsListElement.innerHTML = '<div class="loader" style="font-size: 0.9em; padding: 10px 0;">Nenhum comentário ainda.</div>';
+                } else {
+                    commentEntries.forEach(([commentId, commentData]) => {
+                        // Passa o commentOwnerUid obtido para a função de criação
+                        const commentElement = createCommentElement(commentData, commentId, raceId, commentOwnerUid);
+                        commentsListElement.appendChild(commentElement);
+                    });
+                }
+            }
+        }, error => {
+            console.error(`Erro ao carregar comentários para race ${raceId}:`, error);
+            if (commentsListElement) commentsListElement.innerHTML = '<div style="color: red;">Erro ao carregar comentários.</div>';
+        });
+    });
+}
+
+
+// Carrega e escuta por comentários no perfil atual (V7/8) - SEM ALTERAÇÃO (usa /profileComments)
+function loadProfileComments(profileUid) {
+    if (!profileUid) { dom.profileCommentsList.innerHTML = ''; return; }
+    dom.profileCommentsList.innerHTML = '<div class="loader" style="font-size: 0.9em; padding: 10px 0;">Carregando recados...</div>';
+    const commentsRef = firebase.database().ref(`/profileComments/${profileUid}`).orderByChild('timestamp').limitToLast(50);
+    if (currentProfileCommentsListener) { currentProfileCommentsListener.off(); }
+    currentProfileCommentsListener = commentsRef;
+    commentsRef.on('value', (snapshot) => {
+        dom.profileCommentsList.innerHTML = ''; const comments = snapshot.val() || {}; const commentEntries = Object.entries(comments).sort(([,a], [,b]) => a.timestamp - b.timestamp);
+        if (commentEntries.length === 0) { dom.profileCommentsList.innerHTML = '<div class="loader" style="font-size: 0.9em; padding: 10px 0;">Nenhum recado ainda.</div>'; }
+        else { commentEntries.forEach(([commentId, commentData]) => { const commentElement = createCommentElement(commentData, commentId, null, profileUid); dom.profileCommentsList.appendChild(commentElement); }); }
+    }, error => { console.error(`Erro comentários perfil ${profileUid}:`, error); dom.profileCommentsList.innerHTML = '<div style="color: red;">Erro ao carregar.</div>'; });
+}
+
+
+// Cria o elemento HTML para um comentário (V7/8) - Parâmetro 'ownerOrProfileUid' agora é o UID relevante para exclusão
+function createCommentElement(commentData, commentId, raceId = null, ownerOrProfileUid) {
+    const item = document.createElement('div'); item.className = 'comment-item'; item.dataset.commentId = commentId;
+    const commenterProfilePic = commentData.commenterPic || 'icons/icon-96x96.png'; const timestampFormatted = formatTimestamp(commentData.timestamp);
+    // Permissão de exclusão: autor OU dono da corrida/perfil OU admin
+    const canDelete = authUser && (authUser.uid === commentData.commenterUid || authUser.uid === ownerOrProfileUid || isAdmin);
+    item.innerHTML = `<img src="${commenterProfilePic}" alt="${commentData.commenterName}" class="comment-avatar"><div class="comment-content"><div class="comment-header"><span class="comment-author">${commentData.commenterName}</span><span class="comment-timestamp">${timestampFormatted}</span>${canDelete ? `<button class="comment-delete-btn" title="Excluir"><i class='bx bx-trash'></i></button>` : ''}</div><p class="comment-text">${commentData.text.replace(/\n/g, '<br>')}</p></div>`;
+    const deleteBtn = item.querySelector('.comment-delete-btn'); if (deleteBtn) { deleteBtn.addEventListener('click', (e) => { e.stopPropagation(); if (raceId) { deleteRaceComment(raceId, commentId); } else { deleteProfileComment(ownerOrProfileUid, commentId); } }); }
+    return item;
+}
+
+
+// Modificada V9.2 para salvar em /raceComments e garantir ownerUid
+function handleRaceCommentSubmit(e) {
+    e.preventDefault(); if (!authUser) { alert("Login necessário."); return; }
+    const form = e.target;
+    const raceId = form.dataset.raceId;
+    const ownerUid = form.dataset.ownerUid; // UID do dono da corrida (perfil visualizado)
+    const textarea = form.querySelector('.comment-input');
+    const text = textarea.value.trim();
+    const button = form.querySelector('button[type="submit"]');
+
+    if (!text || !raceId || !ownerUid) return;
+    button.disabled = true;
+
+    const raceCommentsRef = firebase.database().ref(`/raceComments/${raceId}`);
+    const commentsPath = raceCommentsRef.child('comments');
+
+    // 1. Busca perfil do comentador
+    firebase.database().ref(`/publicProfiles/${authUser.uid}`).once('value').then(snapshot => {
+        const profile = snapshot.val() || {};
+        const commenterName = profile.runner1Name || "Usuário";
+        const commenterPic = profile.profilePictureUrl || null;
+        const commentData = {
+            commenterUid: authUser.uid,
+            commenterName: commenterName,
+            commenterPic: commenterPic,
+            text: text,
+            timestamp: firebase.database.ServerValue.TIMESTAMP
+        };
+
+        // 2. Garante que ownerUid existe no nó /raceComments/$raceId antes de adicionar comentário
+        return raceCommentsRef.child('ownerUid').set(ownerUid).then(() => {
+             // 3. Adiciona o comentário
+             return commentsPath.push(commentData);
+        });
+    }).then(() => {
+        textarea.value = '';
+        console.log("Comentário adicionado com sucesso em /raceComments");
+    }).catch(error => {
+        console.error("Erro ao comentar corrida:", error);
+        alert("Erro ao enviar comentário.");
+    }).finally(() => {
+        button.disabled = false;
+    });
+}
+
+
+// Envia um comentário de perfil (V7/8) - SEM ALTERAÇÃO (usa /profileComments)
+function handleProfileCommentSubmit(e) {
+    e.preventDefault(); if (!authUser || !currentViewingUid) { alert("Login necessário."); return; }
+    const text = dom.profileCommentInput.value.trim(); const button = dom.profileCommentForm.querySelector('button[type="submit"]');
+    if (!text) return; button.disabled = true;
+    firebase.database().ref(`/publicProfiles/${authUser.uid}`).once('value').then(snapshot => {
+        const profile = snapshot.val() || {}; const commenterName = profile.runner1Name || "Usuário"; const commenterPic = profile.profilePictureUrl || null;
+        const commentData = { commenterUid: authUser.uid, commenterName: commenterName, commenterPic: commenterPic, text: text, timestamp: firebase.database.ServerValue.TIMESTAMP };
+        return firebase.database().ref(`/profileComments/${currentViewingUid}`).push(commentData);
+    }).then(() => { dom.profileCommentInput.value = ''; console.log("Comentário perfil add"); }).catch(error => { console.error("Erro comentar perfil:", error); alert("Erro ao enviar recado."); }).finally(() => { button.disabled = false; });
+}
+
+
+// Modificada V9.2 para usar /raceComments
+function deleteRaceComment(raceId, commentId) {
+    if (!authUser) return; if (!confirm("Excluir este comentário?")) return;
+    const commentRef = firebase.database().ref(`/raceComments/${raceId}/comments/${commentId}`); // Caminho novo
+    commentRef.remove()
+      .then(() => console.log("Comentário de corrida excluído:", commentId))
+      .catch(error => { console.error("Erro excluir comentário de corrida:", error); alert("Erro ao excluir comentário."); });
+}
+
+// Deleta um comentário de perfil (V7/8) - SEM ALTERAÇÃO (usa /profileComments)
+function deleteProfileComment(profileUid, commentId) {
+     if (!authUser) return; if (!confirm("Excluir este recado?")) return;
+     const commentRef = firebase.database().ref(`/profileComments/${profileUid}/${commentId}`);
+     commentRef.remove().then(() => console.log("Comt perfil excluído:", commentId)).catch(error => { console.error("Erro excluir perfil:", error); alert("Erro ao excluir."); });
+}
+
+// ======================================================
+// SEÇÃO V8: LÓGICA DO LIGHTBOX DE FOTOS
+// ======================================================
+function openLightbox(imageUrls, startIndex = 0) {
+    if (!imageUrls || imageUrls.length === 0) return; lightboxState.images = imageUrls; lightboxState.currentIndex = startIndex; lightboxState.isOpen = true; showLightboxImage(); dom.lightboxOverlay.classList.remove('hidden'); document.body.style.overflow = 'hidden';
+}
+function closeLightbox() { lightboxState.isOpen = false; dom.lightboxOverlay.classList.add('hidden'); document.body.style.overflow = ''; }
+function showLightboxImage() {
+    if (!lightboxState.isOpen) return; dom.lightboxImage.src = lightboxState.images[lightboxState.currentIndex]; dom.lightboxCaption.textContent = `Foto ${lightboxState.currentIndex + 1} de ${lightboxState.images.length}`;
+    dom.lightboxPrev.disabled = lightboxState.currentIndex === 0; dom.lightboxNext.disabled = lightboxState.currentIndex === lightboxState.images.length - 1;
+    dom.lightboxPrev.classList.toggle('disabled', lightboxState.currentIndex === 0); dom.lightboxNext.classList.toggle('disabled', lightboxState.currentIndex === lightboxState.images.length - 1);
+}
+function showPrevImage() { if (lightboxState.currentIndex > 0) { lightboxState.currentIndex--; showLightboxImage(); } }
+function showNextImage() { if (lightboxState.currentIndex < lightboxState.images.length - 1) { lightboxState.currentIndex++; showLightboxImage(); } }
+
+// ======================================================
+// SEÇÃO V9.1: LÓGICA DE LAYOUT (Recolher/Expandir)
+// ======================================================
+function toggleCollapsibleSection(contentElement, buttonElement) {
+    if (!contentElement || !buttonElement) return;
+
+    const isCollapsed = contentElement.classList.toggle('collapsed');
+    const icon = buttonElement.querySelector('i');
+
+    if (isCollapsed) {
+        icon.classList.remove('bx-chevron-up');
+        icon.classList.add('bx-chevron-down');
+        buttonElement.title = "Expandir Histórico";
+    } else {
+        icon.classList.remove('bx-chevron-down');
+        icon.classList.add('bx-chevron-up');
+        buttonElement.title = "Recolher Histórico";
+    }
+}
+
+
+// ======================================================
+// PONTO DE ENTRADA PRINCIPAL (DOM LOADED)
+// ======================================================
+
+document.addEventListener('DOMContentLoaded', () => {
+    // VERIFICAÇÃO CRÍTICA (Firebase)
+    if (typeof FIREBASE_CONFIG === 'undefined' || !FIREBASE_CONFIG.apiKey || FIREBASE_CONFIG.apiKey === "COLE_AQUI_SUA_API_KEY") { alert("ERRO CFG Firebase"); document.body.innerHTML = '<h1>ERRO CFG Firebase</h1>'; return; }
+    // Inicializa Firebase
+    firebaseApp = firebase.initializeApp(FIREBASE_CONFIG); database = firebase.database(); auth = firebase.auth();
+    // VERIFICAÇÃO CRÍTICA (Cloudinary)
+    if (typeof CLOUDINARY_CLOUD_NAME === 'undefined' || typeof CLOUDINARY_UPLOAD_PRESET === 'undefined' || !CLOUDINARY_CLOUD_NAME || CLOUDINARY_CLOUD_NAME === "COLE_AQUI_SEU_CLOUD_NAME" || !CLOUDINARY_UPLOAD_PRESET || CLOUDINARY_UPLOAD_PRESET === "COLE_AQUI_SEU_UPLOAD_PRESET") { alert("ERRO CFG Cloudinary"); return; }
+    CLOUDINARY_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`; CLOUDINARY_PRESET = CLOUDINARY_UPLOAD_PRESET;
+
+    // --- LISTENERS ---
+    dom.btnAddnew.addEventListener('click', () => openModal()); dom.btnCloseModal.addEventListener('click', (e) => { e.preventDefault(); closeModal(); }); dom.btnCancel.addEventListener('click', (e) => { e.preventDefault(); closeModal(); }); dom.form.addEventListener('submit', handleFormSubmit); dom.btnDelete.addEventListener('click', () => { const id = document.getElementById('race-id').value; if(id) deleteRace(id); });
+    dom.btnLoginSubmit.addEventListener('click', handleSignIn); dom.btnSignUpSubmit.addEventListener('click', handleSignUp); dom.btnLogout.addEventListener('click', signOut); dom.btnBackToPublic.addEventListener('click', showLoggedOutView); dom.loginToggleLink.addEventListener('click', () => { const isSigningUp = dom.signupFields.classList.contains('hidden'); toggleLoginMode(isSigningUp); }); dom.btnBackToMyDashboard.addEventListener('click', () => { if (authUser) { dom.btnBackToMyDashboard.classList.add('hidden'); showUserDashboard(authUser); } });
+    dom.btnCloseMediaModal.addEventListener('click', (e) => { e.preventDefault(); closeMediaUploadModal(); }); dom.btnCancelMediaUpload.addEventListener('click', (e) => { e.preventDefault(); closeMediaUploadModal(); }); dom.mediaFileInput.addEventListener('change', handleMediaFileSelect); dom.mediaForm.addEventListener('submit', handleMediaUploadSubmit);
+    dom.btnEditProfile.addEventListener('click', openProfileEditModal); dom.btnCloseProfileEditModal.addEventListener('click', (e) => { e.preventDefault(); closeProfileEditModal(); }); dom.btnCancelProfileEdit.addEventListener('click', (e) => { e.preventDefault(); closeProfileEditModal(); }); dom.profileEditPictureInput.addEventListener('change', handleProfilePictureSelect); dom.profileEditForm.addEventListener('submit', handleProfileEditSubmit);
+    dom.modalSearchInput.addEventListener('keyup', filterResultsInModal); dom.btnCloseResultsModal.addEventListener('click', closeResultsModal); dom.modalOverlay.addEventListener('click', (e) => { if (e.target === dom.modalOverlay && !dom.modalOverlay.classList.contains('hidden')) { closeResultsModal(); } });
+    dom.btnCloseLikersModal.addEventListener('click', (e) => { e.preventDefault(); closeLikersModal(); }); dom.btnCancelLikersModal.addEventListener('click', (e) => { e.preventDefault(); closeLikersModal(); });
+    dom.profileCommentForm.addEventListener('submit', handleProfileCommentSubmit);
+    dom.lightboxClose.addEventListener('click', closeLightbox); dom.lightboxPrev.addEventListener('click', showPrevImage); dom.lightboxNext.addEventListener('click', showNextImage); dom.lightboxOverlay.addEventListener('click', (e) => { if (e.target === dom.lightboxOverlay) { closeLightbox(); } });
+    document.addEventListener('keydown', (e) => { if (!lightboxState.isOpen) return; if (e.key === 'Escape') closeLightbox(); if (e.key === 'ArrowLeft') showPrevImage(); if (e.key === 'ArrowRight') showNextImage(); });
+    // Listener para recolher/expandir (V9.1)
+    dom.toggleHistoryBtn.addEventListener('click', () => toggleCollapsibleSection(dom.historyContent, dom.toggleHistoryBtn));
+    // Listener para clicar no título também (opcional, melhora usabilidade) (V9.1)
+    dom.toggleHistoryBtn.parentElement.addEventListener('click', (e) => {
+        // Só aciona se clicar fora do botão em si (para não acionar duas vezes)
+        if (e.target === dom.toggleHistoryBtn.parentElement || e.target === dom.toggleHistoryBtn.parentElement.querySelector('h2')) {
+            toggleCollapsibleSection(dom.historyContent, dom.toggleHistoryBtn);
+        }
+    });
+
+
+    // Estado inicial
+    toggleLoginMode(false);
+
+    // --- ROTEADOR PRINCIPAL (Auth State Changed) ---
+    auth.onAuthStateChanged((user) => {
+        const previousUserUid = authUser?.uid; authUser = user;
+        if (previousUserUid && previousUserUid !== user?.uid) { // Limpa listeners do user anterior
+            firebase.database().ref(`/users/${previousUserUid}/races`).off();
+            // Limpa ambos os listeners V9.2
+            Object.values(currentRaceLikesListeners).forEach(ref => ref.off()); currentRaceLikesListeners = {};
+            Object.values(currentRaceCommentsListeners).forEach(ref => ref.off()); currentRaceCommentsListeners = {};
+            if (currentProfileCommentsListener) { currentProfileCommentsListener.off(); currentProfileCommentsListener = null; }
+        }
+        if (user) { // --- USUÁRIO LOGADO ---
+            firebase.database().ref('/admins/' + user.uid).once('value', (adminSnapshot) => {
+                isAdmin = adminSnapshot.exists() && adminSnapshot.val() === true;
+                firebase.database().ref('/users/' + user.uid).once('value', (userSnapshot) => {
+                    if (userSnapshot.exists() || isAdmin) { showUserDashboard(user); }
+                    else { firebase.database().ref('/pendingApprovals/' + user.uid).once('value', (pendingSnapshot) => {
+                            if (pendingSnapshot.exists()) { showPendingView(); } else { showRejectedView(user.email); }
+                        }, (error) => { // Tratamento de Erro COMPLETO
+                            if(error.code === "PERMISSION_DENIED") { console.error("ERRO DE REGRAS: Verifique leitura em /pendingApprovals."); signOut(); alert("Erro config. Contate admin."); }
+                            else { console.error("Erro verificar pendingApprovals:", error); signOut(); alert("Erro ao verificar status. Tente novamente."); }
+                        }); } }); });
+        } else { /* --- USUÁRIO DESLOGADO --- */ showLoggedOutView(); }
+    });
+}); // Fim DOMContentLoaded
+_SPEC_BLOCK_|||_
+document.addEventListener('DOMContentLoaded', () => {
+    // Função para exibir resultados de corrida a partir de um JSON local
+    function displayRaceResults(results) {
+        const resultsContainer = document.getElementById('race-results-container');
+        if (!resultsContainer) {
+            console.error("Elemento #race-results-container não encontrado.");
             return;
         }
-    });
 
-    // Modais (Likes, Comentários)
-    dom.raceCommentsModal.addEventListener('click', (e) => handleSocialClicks(e));
-    dom.raceLikesModal.addEventListener('click', (e) => handleSocialClicks(e));
-}
+        resultsContainer.innerHTML = ''; // Limpa resultados anteriores
 
-// Handler unificado para cliques sociais (V9.2)
-function handleSocialClicks(e) {
-    
-    // Clicar no botão Like
-    const likeButton = e.target.closest('.btn-like-race');
-    if (likeButton) {
-        e.stopPropagation();
-        toggleLike(likeButton.dataset.raceId, likeButton.dataset.ownerUid, likeButton.dataset.likerPic, likeButton.dataset.likerName);
-        return;
-    }
-    
-    // Clicar na contagem de Likes (abrir modal)
-    const likeCountSpan = e.target.closest('.like-count');
-    if (likeCountSpan) {
-        e.stopPropagation();
-        const likeBtn = likeCountSpan.closest('.btn-like-race');
-        if (likeBtn) {
-            showRaceLikesModal(likeBtn.dataset.raceId, likeBtn.closest('.history-item').querySelector('strong').textContent);
+        // Agrupa por sexo para criar tabelas separadas
+        const groupedResults = results.reduce((acc, athlete) => {
+            const key = athlete.sex === 'M' ? 'Masculino' : 'Feminino';
+            if (!acc[key]) {
+                acc[key] = [];
+            }
+            acc[key].push(athlete);
+            return acc;
+        }, {});
+
+        // Renderiza os grupos
+        for (const group in groupedResults) {
+            const groupTitle = document.createElement('h2');
+            groupTitle.className = 'section-title';
+            groupTitle.textContent = `Relatório Geral - ${group}`;
+            resultsContainer.appendChild(groupTitle);
+
+            const table = document.createElement('table');
+            table.className = 'results-table'; // Adiciona uma classe para estilização
+            table.innerHTML = `
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Atleta</th>
+                        <th>Equipe</th>
+                        <th>Tempo</th>
+                        <th>Cat.</th>
+                    </tr>
+                </thead>
+                <tbody>
+                </tbody>
+            `;
+            const tbody = table.querySelector('tbody');
+
+            // Ordena os atletas pela colocação (placement)
+            const sortedAthletes = groupedResults[group].sort((a, b) => a.placement - b.placement);
+
+            sortedAthletes.forEach(athlete => {
+                const row = tbody.insertRow();
+                row.innerHTML = `
+                    <td>${athlete.placement}</td>
+                    <td>${athlete.name}</td>
+                    <td>${athlete.team || 'Individual'}</td>
+                    <td>${athlete.time || 'N/A'}</td>
+                    <td>${athlete.age_group || 'N/A'}</td>
+                `;
+            });
+
+            resultsContainer.appendChild(table);
         }
-        return;
-    }
-    
-    // Clicar no botão Comentários (abrir modal)
-    const commentButton = e.target.closest('.btn-show-comments');
-    if (commentButton) {
-        e.stopPropagation();
-        showRaceCommentsModal(commentButton.dataset.raceId, commentButton.dataset.raceName);
-        return;
     }
 
-    // Clicar em Excluir Comentário (V9.6)
-    const deleteCommentButton = e.target.closest('.social-delete-comment');
-    if (deleteCommentButton) {
-        e.stopPropagation();
-        handleDeleteComment(
-            deleteCommentButton.dataset.id,
-            deleteCommentButton.dataset.parentId,
-            deleteCommentButton.dataset.type
-        );
-        return;
-    }
-}
+    // Verifica se a variável global com os resultados existe
+    if (typeof RACE_RESULTS !== 'undefined' && Array.isArray(RACE_RESULTS)) {
+        // Esconde as seções que não são necessárias
+        const loginView = document.getElementById('login-or-public-view');
+        const userContentView = document.getElementById('user-content');
+        const profileHeader = document.getElementById('profile-header-info');
+        const adminPanel = document.getElementById('admin-panel');
 
-
-// ==========================================
-// SEÇÃO 10: UPLOAD DE FOTO DE PERFIL (V5.1)
-// ==========================================
-// (Esta é uma função separada do upload de mídia de corrida)
-
-function handleProfilePictureUpload(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    // (V10) Verifica se as chaves do Cloudinary existem
-    if (typeof CLOUDINARY_CLOUD_NAME === "undefined" || !CLOUDINARY_CLOUD_NAME ||
-        typeof CLOUDINARY_UNSIGNED_PRESET === "undefined" || !CLOUDINARY_UNSIGNED_PRESET) {
-            
-        console.error("Erro: Configuração do Cloudinary não encontrada.");
-        alert("Erro: A função de upload não está configurada. (CLOUDINARY not found)");
-        return;
-    }
-
-    const url = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('upload_preset', CLOUDINARY_UNSIGNED_PRESET);
-    
-    // (V9.6) Aplica transformação para foto de perfil (quadrada, 300x300)
-    formData.append('tags', 'profile_pic');
-    // As transformações podem ser aplicadas no upload, mas é mais fácil aplicar na entrega.
-    // Vamos apenas fazer o upload simples.
-
-    dom.profilePictureProgress.style.width = '0%';
-    dom.profilePictureProgress.classList.remove('hidden');
-
-    // Simula progresso
-    let progress = 0;
-    const interval = setInterval(() => {
-        progress += 10;
-        dom.profilePictureProgress.style.width = `${progress}%`;
-        if (progress >= 90) clearInterval(interval);
-    }, 100);
-
-    fetch(url, {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        clearInterval(interval);
-        dom.profilePictureProgress.style.width = '100%';
+        if(loginView) loginView.style.display = 'none';
+        if(profileHeader) profileHeader.style.display = 'none';
+        if(adminPanel) adminPanel.style.display = 'none';
         
-        if (data.error) {
-            throw new Error(data.error.message);
+        // Garante que a seção principal de conteúdo esteja visível
+        if(userContentView) userContentView.classList.remove('hidden');
+
+        // Cria o container para os resultados se ele não existir
+        let resultsContainer = document.getElementById('race-results-container');
+        if (!resultsContainer) {
+            resultsContainer = document.createElement('div');
+            resultsContainer.id = 'race-results-container';
+            resultsContainer.className = 'dashboard-section';
+            // Adiciona o container no início do user-content
+            userContentView.prepend(resultsContainer);
         }
-        
-        console.log("Upload da foto de perfil concluído:", data);
-        
-        // (V9.6) Cria uma URL de thumbnail quadrada
-        const thumbnailUrl = data.secure_url.replace('/upload/', '/upload/c_thumb,w_300,h_300,g_face/');
-        
-        // Atualiza o campo de URL no formulário
-        dom.profilePictureUrl.value = thumbnailUrl;
-        
-        setTimeout(() => {
-            dom.profilePictureProgress.classList.add('hidden');
-            dom.profilePictureProgress.style.width = '0%';
-        }, 1000);
-    })
-    .catch((error) => {
-        clearInterval(interval);
-        console.error("Erro no upload da foto de perfil:", error);
-        alert(`Erro no upload: ${error.message}`);
-        dom.profilePictureProgress.classList.add('hidden');
-    });
-}
 
-}
-
-{
-type: uploaded file
-fileName: estrutura.zip/HistoricoRunner-main/css/styles-v2.css
-fullContent:
-/* ================================================= */
-/* ESTILIZAÇÃO V2 (Layout Público V9.1)              */
-/* ================================================= */
-
-/* --- Títulos --- */
-.section-title {
-    font-size: 2.25rem; /* 36px */
-    font-weight: 800; /* Extra-bold */
-    text-align: center;
-    margin-bottom: 3rem; /* 48px */
-    color: white;
-}
-
-.text-blue-highlight {
-    color: #60a5fa; /* Azul claro */
-}
-
-/* --- Grid do Calendário --- */
-.calendar-grid {
-    display: grid;
-    /* Cria colunas responsivas: 
-       - Tenta encaixar o máximo de colunas com 350px
-       - Se não couber, cria uma coluna única de 1fr (100%)
-    */
-    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-    gap: 20px;
-    margin-bottom: 40px; /* Espaço após cada grid */
-}
-
-/* --- Card de Corrida (Layout V2) --- */
-.v2-race-card {
-    background-color: #2a2a3a; /* #27272a no Tailwind (zinc-800) */
-    border-radius: 0.75rem; /* 12px */
-    box-shadow: 0 4px 6px -1px rgba(0,0,0,.1),0 2px 4px -2px rgba(0,0,0,.1);
-    transition: all 0.2s ease-out;
-    border: 1px solid #444; /* #52525b (zinc-600) */
-    display: flex;
-    overflow: hidden; /* Garante que os cantos arredondados funcionem */
-}
-
-.v2-race-card:hover {
-    transform: translateY(-5px);
-    border-color: #60a5fa; /* Azul ao passar o mouse */
-}
-
-/* --- Data (Lado Esquerdo) --- */
-.v2-race-date {
-    background-color: #60a5fa; /* Azul */
-    color: white;
-    padding: 1rem; /* 16px */
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-width: 90px; /* Largura mínima */
-    text-align: center;
-}
-
-.v2-race-date-day {
-    font-size: 2rem; /* 32px */
-    font-weight: 700; /* Bold */
-    line-height: 1; /* Remove altura extra da linha */
-}
-
-.v2-race-date-month {
-    font-size: 1rem; /* 16px */
-    font-weight: 600; /* Semi-bold */
-}
-
-/* --- Infos (Lado Direito) --- */
-.v2-race-info {
-    padding: 1rem; /* 16px */
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between; /* Empurra botões para baixo */
-    flex-grow: 1; /* Ocupa o espaço restante */
-}
-
-.v2-race-info h3 {
-    font-weight: bold;
-    font-size: 1.2em;
-    color: white;
-}
-
-.v2-race-info p {
-    font-size: 0.9em;
-    color: #b0b0b0; /* #a1a1aa (zinc-400) */
-}
-
-.v2-race-buttons {
-    display: flex;
-    gap: 0.5rem; /* 8px */
-    margin-top: 1rem; /* 16px */
-}
-
-/* --- Botões de Ação --- */
-.v2-results-button,
-.v2-race-button-disabled,
-.v2-inscricoes-button,
-.v2-add-personal-button { /* V9.1 */
-    text-align: center;
-    font-weight: 600;
-    padding: 0.5rem 1rem; /* 8px 16px */
-    border-radius: 0.375rem; /* 6px */
-    font-size: 0.875rem; /* 14px */
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: none;
-    cursor: pointer;
-    text-decoration: none; /* Para o <a> */
-}
-
-/* Botão Resultados */
-.v2-results-button {
-    background-color: #ca8a04; /* Amarelo-escuro */
-    color: white;
-}
-.v2-results-button:hover {
-    background-color: #a16207;
-}
-
-/* Botão Inscrições */
-.v2-inscricoes-button {
-    background-color: #16a34a; /* Verde */
-    color: white;
-}
-.v2-inscricoes-button:hover {
-    background-color: #15803d;
-}
-
-/* Botão Adicionar ao Histórico (V9.1) */
-.v2-add-personal-button {
-    background-color: #007bff; /* Azul (diferente do verde) */
-    color: white;
-}
-.v2-add-personal-button:hover {
-    background-color: #0056b3;
-}
-
-
-/* Botão Desabilitado */
-.v2-race-button-disabled {
-    background-color: #4b5563; /* Cinza-escuro */
-    color: #9ca3af; /* Cinza-claro */
-    cursor: not-allowed;
-}
-
-
-/* ================================================= */
-/* MODAL DE RESULTADOS (V2)                          */
-/* ================================================= */
-
-/* Overlay */
-.v2-modal-overlay {
-    position: fixed;
-    inset: 0; /* (top, right, bottom, left = 0) */
-    background: rgba(0, 0, 0, 0.7);
-    backdrop-filter: blur(5px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 1rem;
-    z-index: 50;
-    transition: opacity 0.3s ease;
-}
-
-.v2-modal-overlay.hidden {
-    display: none;
-    opacity: 0;
-}
-
-/* Conteúdo do Modal */
-.v2-modal-content {
-    background: #2a2a3a;
-    border-radius: 15px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-    width: 90%;
-    max-width: 900px;
-    max-height: 90vh; /* Limita a altura */
-    display: flex;
-    flex-direction: column;
-    border: 1px solid #555;
-    position: relative;
-}
-
-/* Botão de Fechar */
-.v2-modal-close-btn {
-    position: absolute;
-    top: 15px;
-    right: 20px;
-    background: none;
-    border: none;
-    color: #b0b0b0;
-    font-size: 2rem;
-    cursor: pointer;
-    z-index: 10;
-}
-.v2-modal-close-btn:hover { color: white; }
-
-/* Header do Modal */
-.v2-modal-header {
-    padding: 20px 30px;
-    background: #1f2027;
-    border-bottom: 1px solid #444;
-}
-.v2-modal-title {
-    font-size: 1.8em;
-    font-weight: 700;
-    color: #c5cae9;
-}
-
-/* Corpo do Modal */
-.v2-modal-body {
-    padding: 20px 30px;
-    overflow-y: auto; /* Permite scroll se o conteúdo for maior */
-    flex-grow: 1; /* Ocupa o espaço disponível */
-}
-
-/* Tabela de Resultados (V2) */
-.v2-modal-category-title {
-    font-size: 1.5rem; /* 24px */
-    font-weight: 700; /* Bold */
-    color: #60a5fa; /* Azul claro */
-    margin-top: 1.5rem; /* 24px */
-    margin-bottom: 1rem; /* 16px */
-    padding-bottom: 0.5rem; /* 8px */
-    border-bottom: 1px solid #444;
-}
-
-.v2-results-table {
-    width: 100%;
-    text-align: left;
-    font-size: 0.9em;
-}
-
-.v2-results-table thead {
-    background-color: #333345;
-    color: #b0b0b0;
-    font-size: 0.8em;
-    text-transform: uppercase;
-}
-
-.v2-results-table th,
-.v2-results-table td {
-    padding: 10px 15px;
-}
-
-.v2-results-table tbody tr {
-    border-bottom: 1px solid #444;
-}
-
-.v2-results-table tbody tr:hover {
-    background-color: #333345;
-}
-
-/* Responsividade do Modal */
-@media (max-width: 768px) {
-    .v2-modal-content {
-        width: 100%;
-        max-width: 100%;
-        height: 100vh;
-        max-height: 100vh;
-        border-radius: 0;
+        // Exibe os resultados
+        displayRaceResults(RACE_RESULTS);
+    } else {
+         // Se não houver dados locais, tenta inicializar o Firebase
+         // (Este é o fluxo original do app)
+         initializeApp();
     }
+});
+
+function initializeApp() {
+    // A inicialização original do Firebase iria aqui.
+    // Como estamos focando na exibição local, esta função pode ser deixada vazia
+    // ou conter a lógica original de conexão com o Firebase se necessário.
+    console.log("RACE_RESULTS não encontrado, prosseguindo com a inicialização normal do Firebase (se configurado).");
 }
 
-}
-
-{
-type: uploaded file
-fileName: estrutura.zip/HistoricoRunner-main/manifest.json
-fullContent:
-{
-  "name": "Currículo de Corredores",
-  "short_name": "Corri 🏃🏻‍♂️🏃🏽‍♀️",
-  "description": "Sua rede social para históricos e resultados de corridas de rua.",
-  "start_url": "index.html",
-  "display": "standalone",
-  "background_color": "#1f2027",
-  "theme_color": "#007bff",
-  "orientation": "portrait-primary",
-  "scope": ".",
-  "icons": [
-    {
-      "src": "icons/icon-72x72.png",
-      "sizes": "72x72",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "icons/icon-96x96.png",
-      "sizes": "96x96",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "icons/icon-128x128.png",
-      "sizes": "128x128",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "icons/icon-144x144.png",
-      "sizes": "144x144",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "icons/icon-152x152.png",
-      "sizes": "152x152",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "icons/icon-192x192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "icons/icon-384x384.png",
-      "sizes": "384x384",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "icons/icon-512x512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    }
-  ]
-}
+_SPEC_SPEC_BLOCK_|||
