@@ -2840,6 +2840,3 @@ fullContent:
     }
   ]
 }
-
-}
-mas vc nao entende? a estrutura corri-rp nao usa js/app.. é uma versao antiga.. essa que vc quebrou (estrutura.zip) é a mais atual.. so que esta quebrada pq vc começou a fazer alterações e nao sabe mais voltar ao que era antes..  vc vai continuar se repetindo?
