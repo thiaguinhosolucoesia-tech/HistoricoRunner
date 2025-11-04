@@ -5,6 +5,7 @@
 // ATUALIZADO (V9.5) COM TAREFA 4 (Exibição de Faixa Etária nos Resultados)
 // CORREÇÃO (V9.5.1) DE ERRO DE DIGITAÇÃO NA DECLARAÇÃO 'dom' (getElementById_TODO_REVISAR)
 // CORREÇÃO (V9.5.2) DE "RACE CONDITION" EM loadUserProfile (db.profile undefined)
+// CORREÇÃO (V9.5.3) DE ERRO DE DIGITAÇÃO EM loadPublicData (appSTATE)
 // =================================================================
 
 // --- Variáveis Globais do App ---\
@@ -502,9 +503,7 @@ function showPublicListView() {
 // SEÇÃO 2: LÓGICA DE DADOS (CARREGAMENTO E RENDERIZAÇÃO)
 // =================================================================
 
-// =================================================================
-// INÍCIO DA ALTERAÇÃO (V9.5.2) - CORREÇÃO DO RACE CONDITION
-// =================================================================
+// (V9.5.2) - CORREÇÃO DO RACE CONDITION
 function loadUserProfile(uid) {
     // Se já estamos vendo esse perfil, não recarrega
     if (currentViewingUid === uid) {
@@ -572,9 +571,7 @@ function loadUserProfile(uid) {
         dom.appLoading.classList.add('hidden');
     });
 }
-// =================================================================
-// FIM DA ALTERAÇÃO (V9.5.2)
-// =================================================================
+// (FIM DA CORREÇÃO V9.5.2)
 
 // --- Carregamento da Lista Pública ---
 function loadPublicList() {
@@ -621,7 +618,13 @@ function loadPublicData() {
             const activeFilter = dom.publicContentFilters.querySelector('button.active');
             if (activeFilter) {
                 if (activeFilter.id === 'btn-show-copa-alcer') renderPublicCalendar(appState.allCorridas.copaAlcer, 'Copa Alcer');
-                if (activeFilter.id === 'btn-show-geral') renderPublicCalendar(appSTATE.allCorridas.geral, 'Calendário Geral');
+                // =================================================================
+                // INÍCIO DA CORREÇÃO (V9.5.3) - Erro de digitação appSTATE
+                // =================================================================
+                if (activeFilter.id === 'btn-show-geral') renderPublicCalendar(appState.allCorridas.geral, 'Calendário Geral'); // Corrigido de appSTATE
+                // =================================================================
+                // FIM DA CORREÇÃO (V9.5.3)
+                // =================================================================
             }
         }
     });
@@ -1702,9 +1705,7 @@ function cleanupListeners() {
 // SEÇÃO 6: LÓGICA V2/V9.3 (MODAL DE RESULTADOS)
 // =================================================================
 
-// =================================================================
-// INÍCIO DA ALTERAÇÃO: Função de Exibição de Resultados (V9.5)
-// =================================================================
+// (V9.5) - Exibição de Faixa Etária
 function showRaceResultsModal(raceId, raceName) {
     dom.raceResultsTitle.textContent = raceName;
     dom.raceResultsContent.innerHTML = '<div class="loader">Carregando resultados...</div>';
@@ -1807,9 +1808,6 @@ function showRaceResultsModal(raceId, raceName) {
 
     dom.raceResultsContent.innerHTML = fullHtml;
 }
-// =================================================================
-// FIM DA ALTERAÇÃO (V9.5)
-// =================================================================
 
 
 // =================================================================
@@ -2213,7 +2211,7 @@ function toggleCollapsibleSection(contentElement, buttonElement) {
 // document.addEventListener('DOMContentLoaded', () => {
 //     if (localStorage.getItem(dom.toggleHistoryContent.id + '_collapsed') === 'true') {
 //         toggleCollapsibleSection(dom.toggleHistoryContent, dom.toggleHistoryBtn);
-    }
+//     }
 //     if (localStorage.getItem(dom.toggleCommentsContent.id + '_collapsed') === 'true') {
 //         toggleCollapsibleSection(dom.toggleCommentsContent, dom.toggleCommentsBtn);
 //     }
