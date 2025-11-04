@@ -1,7 +1,6 @@
 // =================================================================
 // ARQUIVO DE LÓGICA DO PAINEL DE ADMIN (V4 - Rede Social)
-// ATUALIZADO (V9.5) COM LÓGICA DE NORMALIZAÇÃO DE UPLOAD
-// (Baseado no seu original estável)
+// VERSÃO ESTÁVEL V9.6 (Baseada no original)
 // =================================================================
 
 // Esta função é o ponto de entrada, chamada pelo main-logic.js se o usuário for admin
@@ -404,7 +403,7 @@ function initializeAdminPanel(adminUid, db) {
     }
     
     // =================================================================
-    // INÍCIO DA ALTERAÇÃO (V9.5) - Normalização do Upload
+    // INÍCIO DA ALTERAÇÃO (V9.6) - Normalização do Upload
     // =================================================================
     function processAndUploadResults(raceId, resultsData) {
         updateStatus("Processando e enviando resultados da etapa...", "loading", 'results');
@@ -476,7 +475,7 @@ function initializeAdminPanel(adminUid, db) {
             .catch(error => updateStatus(`Falha no envio: ${error.message}`, "error", 'results'));
     }
     // =================================================================
-    // FIM DA ALTERAÇÃO (V9.5)
+    // FIM DA ALTERAÇÃO (V9.6)
     // =================================================================
 
     function uploadFinalRanking(rankingData) {
