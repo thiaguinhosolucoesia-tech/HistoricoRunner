@@ -1,11 +1,8 @@
 // =================================================================
-// ARQUIVO DE LÓGICA PRINCIPAL (V9.2 - Estrutura BD Separada + Layout + Add Corrida Pública + Correções)
-// ATUALIZADO (V9.3) COM TAREFAS 2 (Excluir Mídia) e 3 (Ver Classificação)
-// CORREÇÃO (V9.4) DO ERRO 'sort' of undefined em openMediaUploadModal
-// ATUALIZADO (V9.5) COM TAREFA 4 (Exibição de Faixa Etária nos Resultados)
-// CORREÇÃO (V9.5.1) DE ERRO DE DIGITAÇÃO NA DECLARAÇÃO 'dom' (getElementById_TODO_REVISAR)
-// CORREÇÃO (V9.5.2) DE "RACE CONDITION" EM loadUserProfile (db.profile undefined)
-// CORREÇÃO (V9.5.3) DE ERRO DE DIGITAÇÃO EM loadPublicData (appSTATE)
+// ARQUIVO DE LÓGICA PRINCIPAL (V9.4 - Original)
+// ATUALIZADO (V9.5) COM EXIBIÇÃO DE FAIXA ETÁRIA
+// CORREÇÃO (V9.5.3) DOS BUGS DE INICIALIZAÇÃO (getElementById, Race Condition, appSTATE)
+// (Baseado no seu original estável)
 // =================================================================
 
 // --- Variáveis Globais do App ---\
@@ -136,8 +133,7 @@ const dom = {
     raceName: document.getElementById('race-name-modal'),
     raceDate: document.getElementById('race-date-modal'),
     raceDistance: document.getElementById('race-distance'),
-    // (V9.5.1)
-    raceNotes: document.getElementById('race-notes'), // Corrigido
+    raceNotes: document.getElementById('race-notes'), // Linha original (corrigida)
     
     // V3.7 - Status da Corrida (Runners 1 e 2)
     raceStatusRunner1: document.getElementById('race-status-runner1'),
@@ -304,13 +300,13 @@ function setupAuthListener() {
                             }
                         }, (error) => { // Tratamento de Erro (Regras de Segurança)
                             if(error.code === "PERMISSION_DENIED") {
-                                console.error("ERRO DE REGRAS: Verifique as regras de leitura em /pendingApprovals.");
+                                console.error("ERRO DE REGRAS: Verifique leitura em /pendingApprovals.");
                                 signOut(); 
-                                alert("Erro de configuração. Contate o administrador.");
+                                alert("Erro config. Contate admin.");
                             } else {
-                                console.error("Erro ao verificar pendingApprovals:", error);
+                                console.error("Erro verificar pendingApprovals:", error);
                                 signOut(); 
-                                alert("Erro ao verificar seu status. Tente novamente.");
+                                alert("Erro ao verificar status. Tente novamente.");
                             }
                         });
                     }
@@ -503,6 +499,7 @@ function showPublicListView() {
 // SEÇÃO 2: LÓGICA DE DADOS (CARREGAMENTO E RENDERIZAÇÃO)
 // =================================================================
 
+// --- Carregamento de Perfil de Usuário ---
 // (V9.5.2) - CORREÇÃO DO RACE CONDITION
 function loadUserProfile(uid) {
     // Se já estamos vendo esse perfil, não recarrega
@@ -537,7 +534,6 @@ function loadUserProfile(uid) {
         dom.btnBackToMyDashboard.classList.add('hidden');
     }
 
-    // --- CORREÇÃO V9.5.2 ---
     // 1. Carrega os dados do perfil (profile) PRIMEIRO
     const profileRef = database.ref(`/users/${uid}/profile`);
     profileRef.on('value', (snapshot) => {
@@ -563,7 +559,6 @@ function loadUserProfile(uid) {
         });
 
         // 3. Carrega os comentários do perfil (mural)
-        // (Isso pode rodar em paralelo, não depende de db.profile)
         loadProfileComments(uid);
 
     }, (error) => {
@@ -1705,7 +1700,9 @@ function cleanupListeners() {
 // SEÇÃO 6: LÓGICA V2/V9.3 (MODAL DE RESULTADOS)
 // =================================================================
 
-// (V9.5) - Exibição de Faixa Etária
+// =================================================================
+// INÍCIO DA ALTERAÇÃO (V9.5) - Exibição de Faixa Etária
+// =================================================================
 function showRaceResultsModal(raceId, raceName) {
     dom.raceResultsTitle.textContent = raceName;
     dom.raceResultsContent.innerHTML = '<div class="loader">Carregando resultados...</div>';
@@ -1808,6 +1805,9 @@ function showRaceResultsModal(raceId, raceName) {
 
     dom.raceResultsContent.innerHTML = fullHtml;
 }
+// =================================================================
+// FIM DA ALTERAÇÃO (V9.5)
+// =================================================================
 
 
 // =================================================================
