@@ -770,7 +770,7 @@ html, body {
     .messenger-body {
         flex-direction: column;
     }
-    .c.history-container {
+    .history-container {
     /* CORREÇÃO V14: Garante que o container de histórico seja escondido corretamente */
     overflow: hidden;
     max-height: 1000px; /* Valor alto para transição */

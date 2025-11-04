@@ -1023,7 +1023,7 @@ function openMediaUploadModal(raceId) {
         });
     } else {
          // Se não houver mídias existentes, garante que o container esteja oculto (até que novos arquivos sejam selecionados)
-         dom.mediaPrhistoryContainer.classList.contains('collapsed') 'none';
+         dom.mediaPreviewContainer.style.display = 'none';
     }
     // --- FIM TAREFA 2 ---
 
