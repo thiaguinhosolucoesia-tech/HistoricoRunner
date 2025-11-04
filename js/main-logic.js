@@ -1,6 +1,6 @@
 // ==========================================
 // ARQUIVO DE LÓGICA PRINCIPAL (V10 - Rede Social)
-// VERSÃO ESTÁVEL (V10.0) - CORREÇÃO COMPLETA
+// VERSÃO ESTÁVEL (V10.1) - CORREÇÃO COMPLETA (SINTAXE + NULL CHECKS)
 // (Complementa admin-logic.js)
 // ==========================================
 
@@ -30,7 +30,14 @@ const STATUS_PLANNED = 'planned';
 const STATUS_SKIPPED = 'skipped';
 
 // --- Ponto de Entrada Principal ---
+// =================================================================
+// INÍCIO DA CORREÇÃO 1 (Erro de Sintaxe "V")
+// A linha 32 foi corrigida de ()V => para () =>
+// =================================================================
 document.addEventListener('DOMContentLoaded', () => {
+// =================================================================
+// FIM DA CORREÇÃO 1
+// =================================================================
     cacheDomElements();
     setupEventListeners();
     initializeFirebase();
@@ -2213,10 +2220,21 @@ function setupEventListeners() {
     dom.filterStatus.addEventListener('change', () => loadUserProfile(appState.currentViewingUid));
     dom.filterRunner.addEventListener('change', () => loadUserProfile(appState.currentViewingUid));
     
+    // =================================================================
+    // INÍCIO DA CORREÇÃO 2 (Erro de "null.addEventListener")
+    // Adicionamos "if (dom.toggle...)" para evitar o crash
+    // =================================================================
     // --- Recolher/Expandir (V13) ---
-    dom.toggleHistoryBtn.addEventListener('click', () => toggleCollapsibleSection(dom.toggleHistoryContent, dom.toggleHistoryBtn));
-    dom.toggleCommentsBtn.addEventListener('click', () => toggleCollapsibleSection(dom.toggleCommentsContent, dom.toggleCommentsBtn));
+    if (dom.toggleHistoryBtn && dom.toggleHistoryContent) {
+        dom.toggleHistoryBtn.addEventListener('click', () => toggleCollapsibleSection(dom.toggleHistoryContent, dom.toggleHistoryBtn));
+    }
+    if (dom.toggleCommentsBtn && dom.toggleCommentsContent) {
+        dom.toggleCommentsBtn.addEventListener('click', () => toggleCollapsibleSection(dom.toggleCommentsContent, dom.toggleCommentsBtn));
+    }
     loadCollapsibleState(); // Carrega o estado salvo
+    // =================================================================
+    // FIM DA CORREÇÃO 2
+    // =================================================================
 
     // --- CRUD Modal Corrida ---
     dom.btnAddRace.addEventListener('click', () => openRaceModal());
