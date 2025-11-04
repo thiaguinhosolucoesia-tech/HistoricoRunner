@@ -268,15 +268,24 @@ function initializeAdminPanel(adminUid, db) {
         const copaRef = db.ref('/corridas/copaAlcer');
         const geralRef = db.ref('/corridas/geral');
 
+        let allRaces = {};
+
         copaRef.on('value', (snapshot) => {
-            const races = snapshot.val();
-            displayRaceList(races, adminDom.copaRaceList, 'copaAlcer');
-            populateResultsRaceSelect(races);
+            const copaRaces = snapshot.val() || {};
+            displayRaceList(copaRaces, adminDom.copaRaceList, 'copaAlcer');
+            
+            // Combina as corridas da Copa Alcer com as Corridas Gerais
+            allRaces = { ...allRaces, ...copaRaces };
+            populateResultsRaceSelect(allRaces);
         });
 
         geralRef.on('value', (snapshot) => {
-            const races = snapshot.val();
-            displayRaceList(races, adminDom.geralRaceList, 'geral');
+            const geralRaces = snapshot.val() || {};
+            displayRaceList(geralRaces, adminDom.geralRaceList, 'geral');
+            
+            // Combina as Corridas Gerais com as corridas da Copa Alcer
+            allRaces = { ...allRaces, ...geralRaces };
+            populateResultsRaceSelect(allRaces);
         });
     }
 
@@ -394,10 +403,12 @@ function initializeAdminPanel(adminUid, db) {
         adminDom.raceIdInput.value = '';
     }
 
-    function populateResultsRaceSelect(races) {
+    function populateResultsRaceSelect(allRaces) {
         adminDom.resultsRaceSelect.innerHTML = '<option value="">Selecione uma etapa</option>';
-        if(!races) return;
-        const sortedRaces = Object.values(races).sort((a,b) => new Date(b.data) - new Date(a.data));
+        if(!allRaces || Object.keys(allRaces).length === 0) return;
+        
+        const sortedRaces = Object.values(allRaces).sort((a,b) => new Date(b.data) - new Date(a.data));
+        
         sortedRaces.forEach(race => {
             const option = document.createElement('option');
             option.value = race.id;
