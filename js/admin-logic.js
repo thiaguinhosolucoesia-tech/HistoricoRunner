@@ -426,6 +426,7 @@ function initializeAdminPanel(adminUid, db) {
         // Mapeamento de chaves comuns de apuradoras para o formato interno
         const keyMap = {
             'Fx.Et.': 'category', // Faixa Etária -> Categoria
+            'Cl.Fx.': 'category_placement', // Colocação por Faixa Etária -> category_placement (CORRIGE ERRO DE PONTO)
             'Coloc.': 'placement', // Colocação -> Placement
             'Tempo': 'time', // Tempo -> Time
             'Nome': 'name', // Nome -> Name
